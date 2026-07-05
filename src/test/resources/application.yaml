@@ -1,10 +1,12 @@
 spring:
-  data:
-    mongodb:
-      uri: mongodb://localhost:27017/insurancecrm_test
+  mongodb:
+    uri: mongodb://localhost:27017/insuredindex_test
 
 app:
   jwt:
     secret: test-only-secret-key-must-be-at-least-256-bits-long-for-hmac!!
     access-expiry-minutes: 60
     refresh-expiry-days: 30
+  admin:
+    email: ""
+    password: ""

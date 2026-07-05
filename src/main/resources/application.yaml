@@ -1,9 +1,10 @@
 spring:
   application:
-    name: insurancecrm
+    name: insuredindex
+  mongodb:
+    uri: ${MONGODB_URI:mongodb://localhost:27017/test}
   data:
     mongodb:
-      uri: ${MONGODB_URI:mongodb://localhost:27017/test}
       auto-index-creation: true
 
 server:
@@ -16,6 +17,11 @@ app:
     secret: ${JWT_SECRET}
     access-expiry-minutes: 60
     refresh-expiry-days: 30
+  admin:
+    # Only used once, to seed the very first admin account when the users collection is empty.
+    # No defaults on purpose — see DataInitializer for what happens if these are left unset.
+    email: ${ADMIN_EMAIL:}
+    password: ${ADMIN_PASSWORD:}
 
 logging:
   level:

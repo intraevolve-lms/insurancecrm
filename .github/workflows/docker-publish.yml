@@ -22,5 +22,5 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/insurancecrm:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/insurancecrm:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/insuredindex:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/insuredindex:${{ github.sha }}

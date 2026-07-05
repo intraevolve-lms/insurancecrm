@@ -141,4 +141,67 @@ class AuthControllerIT {
                         .content(objectMapper.writeValueAsString(Map.of("refreshToken", accessToken))))
                 .andExpect(status().isForbidden());
     }
+
+    private String loginAndGetAccessToken() throws Exception {
+        String loginResponse = mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody(EMAIL, PASSWORD)))
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(loginResponse).get("data").get("token").asText();
+    }
+
+    @Test
+    void changePassword_noAuthToken_returns401() throws Exception {
+        // Regression test: /api/auth/** used to be entirely permitAll, which would have left
+        // this endpoint wide open to anyone with just an email.
+        mockMvc.perform(post("/api/auth/change-password").contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "currentPassword", PASSWORD, "newPassword", "NewPassword@456"))))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void changePassword_correctCurrentPassword_updatesPasswordAndOldPasswordStopsWorking() throws Exception {
+        String accessToken = loginAndGetAccessToken();
+
+        mockMvc.perform(post("/api/auth/change-password").header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "currentPassword", PASSWORD, "newPassword", "NewPassword@456"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody(EMAIL, PASSWORD)))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody(EMAIL, "NewPassword@456")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void changePassword_wrongCurrentPassword_returns400AndLeavesPasswordUnchanged() throws Exception {
+        String accessToken = loginAndGetAccessToken();
+
+        mockMvc.perform(post("/api/auth/change-password").header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "currentPassword", "wrong-password", "newPassword", "NewPassword@456"))))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody(EMAIL, PASSWORD)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void changePassword_newPasswordTooShort_returns400ValidationError() throws Exception {
+        String accessToken = loginAndGetAccessToken();
+
+        mockMvc.perform(post("/api/auth/change-password").header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "currentPassword", PASSWORD, "newPassword", "short"))))
+                .andExpect(status().isBadRequest());
+    }
 }

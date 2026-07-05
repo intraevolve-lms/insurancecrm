@@ -16,9 +16,9 @@ public class OpenApiConfig {
         final String schemeName = "bearerAuth";
         return new OpenAPI()
                 .info(new Info()
-                        .title("Insurance Renewal CRM API")
+                        .title("InsuredIndex API")
                         .version("1.0")
-                        .description("REST API for managing customers, policies, renewals, tasks and notes"))
+                        .description("REST API for InsuredIndex (insuredindex.com) — managing customers, policies, renewals, tasks and notes"))
                 .addSecurityItem(new SecurityRequirement().addList(schemeName))
                 .components(new Components()
                         .addSecuritySchemes(schemeName, new SecurityScheme()

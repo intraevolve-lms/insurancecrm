@@ -29,5 +29,7 @@ public class User {
 
     private boolean active;
 
+    private boolean mustChangePassword;
+
     private LocalDateTime createdAt;
 }

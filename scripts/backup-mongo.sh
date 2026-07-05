@@ -9,13 +9,13 @@
 # tier this script is what stands in for it.
 #
 # Usage:
-#   MONGODB_URI="mongodb+srv://user:pass@cluster.mongodb.net/insurancecrm" \
-#   BACKUP_DIR="/opt/insurancecrm/backups" \
+#   MONGODB_URI="mongodb+srv://user:pass@cluster.mongodb.net/insuredindex" \
+#   BACKUP_DIR="/opt/insuredindex/backups" \
 #   RETENTION_DAYS=14 \
 #   ./backup-mongo.sh
 #
 # Example crontab entry (daily at 2am):
-#   0 2 * * * MONGODB_URI="..." BACKUP_DIR="/opt/insurancecrm/backups" /opt/insurancecrm/scripts/backup-mongo.sh >> /var/log/insurancecrm-backup.log 2>&1
+#   0 2 * * * MONGODB_URI="..." BACKUP_DIR="/opt/insuredindex/backups" /opt/insuredindex/scripts/backup-mongo.sh >> /var/log/insuredindex-backup.log 2>&1
 
 set -euo pipefail
 
@@ -25,7 +25,7 @@ RETENTION_DAYS="${RETENTION_DAYS:-14}"
 
 mkdir -p "$BACKUP_DIR"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-ARCHIVE="$BACKUP_DIR/insurancecrm-$TIMESTAMP.gz"
+ARCHIVE="$BACKUP_DIR/insuredindex-$TIMESTAMP.gz"
 
 echo "[$(date)] Starting backup to $ARCHIVE"
 
@@ -38,7 +38,7 @@ docker run --rm \
 echo "[$(date)] Backup complete: $ARCHIVE ($(du -h "$ARCHIVE" | cut -f1))"
 
 # Prune backups older than RETENTION_DAYS
-find "$BACKUP_DIR" -name 'insurancecrm-*.gz' -mtime "+$RETENTION_DAYS" -print -delete
+find "$BACKUP_DIR" -name 'insuredindex-*.gz' -mtime "+$RETENTION_DAYS" -print -delete
 
 echo "[$(date)] Pruned backups older than $RETENTION_DAYS days"
 

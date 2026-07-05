@@ -1,0 +1,41 @@
+# Local verification compose file — builds both images FROM SOURCE (unlike docker-compose.yml,
+# which pulls published images) and runs them against a throwaway local MongoDB container.
+# Use this to sanity-check a change before pushing, or to reproduce a deploy issue locally.
+#
+# Assumes this repo and insurancecrm-fe are checked out as sibling directories. If yours live
+# elsewhere, edit the frontend build context path below.
+#
+# Usage:
+#   docker compose -f docker-compose.local.yml up -d --build
+#   docker compose -f docker-compose.local.yml logs -f backend
+#   docker compose -f docker-compose.local.yml down -v
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    expose:
+      - "27017"
+
+  backend:
+    build:
+      context: .
+    restart: unless-stopped
+    environment:
+      JWT_SECRET: local-test-secret-not-for-production
+      MONGODB_URI: mongodb://mongo:27017/insuredindex-local
+      ADMIN_EMAIL: admin@local.test
+      ADMIN_PASSWORD: local-admin-password
+    depends_on:
+      - mongo
+    ports:
+      - "8081:8081"
+
+  frontend:
+    build:
+      context: ../insurancecrm-fe
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"

@@ -1,6 +1,7 @@
 package com.example.insurancecrm.service;
 
 import com.example.insurancecrm.domain.User;
+import com.example.insurancecrm.dto.request.ChangePasswordRequest;
 import com.example.insurancecrm.dto.request.LoginRequest;
 import com.example.insurancecrm.dto.response.AuthResponse;
 import com.example.insurancecrm.enums.Role;
@@ -15,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
 
@@ -29,6 +31,7 @@ class AuthServiceTest {
     @Mock private AuthenticationManager authenticationManager;
     @Mock private UserRepository userRepository;
     @Mock private JwtUtil jwtUtil;
+    @Mock private PasswordEncoder passwordEncoder;
 
     @InjectMocks
     private AuthService authService;
@@ -45,6 +48,13 @@ class AuthServiceTest {
         LoginRequest req = new LoginRequest();
         req.setEmail(email);
         req.setPassword(password);
+        return req;
+    }
+
+    private ChangePasswordRequest changePasswordRequest(String current, String newPass) {
+        ChangePasswordRequest req = new ChangePasswordRequest();
+        req.setCurrentPassword(current);
+        req.setNewPassword(newPass);
         return req;
     }
 
@@ -115,6 +125,38 @@ class AuthServiceTest {
         when(userRepository.findByEmail("ghost@test.com")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> authService.refresh("valid-refresh"))
+                .isInstanceOf(ApiException.class);
+    }
+
+    @Test
+    void changePassword_correctCurrentPassword_updatesPasswordAndClearsMustChangeFlag() {
+        user.setMustChangePassword(true);
+        when(userRepository.findByEmail("agent@test.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("oldPass123", "encoded")).thenReturn(true);
+        when(passwordEncoder.encode("newPass456")).thenReturn("newly-encoded");
+
+        authService.changePassword("agent@test.com", changePasswordRequest("oldPass123", "newPass456"));
+
+        assertThat(user.getPassword()).isEqualTo("newly-encoded");
+        assertThat(user.isMustChangePassword()).isFalse();
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void changePassword_wrongCurrentPassword_isRejectedWithoutSaving() {
+        when(userRepository.findByEmail("agent@test.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("wrongPass", "encoded")).thenReturn(false);
+
+        assertThatThrownBy(() -> authService.changePassword("agent@test.com", changePasswordRequest("wrongPass", "newPass456")))
+                .isInstanceOf(ApiException.class);
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void changePassword_userNotFound_throwsNotFound() {
+        when(userRepository.findByEmail("ghost@test.com")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.changePassword("ghost@test.com", changePasswordRequest("any", "newPass456")))
                 .isInstanceOf(ApiException.class);
     }
 }

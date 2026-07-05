@@ -4,6 +4,8 @@
 #   JWT_SECRET=<32+ char random secret>
 #   MONGODB_URI=<Atlas connection string, includes the database name>
 #   TAG=latest   (or a specific commit SHA to pin a version)
+#   ADMIN_EMAIL / ADMIN_PASSWORD  (only needed for the very first boot — see README's
+#     "First admin account" section; safe to remove from .env after that first boot)
 #
 # Usage:
 #   docker compose pull
@@ -11,16 +13,18 @@
 
 services:
   backend:
-    image: ${DOCKERHUB_USERNAME}/insurancecrm:${TAG:-latest}
+    image: ${DOCKERHUB_USERNAME}/insuredindex:${TAG:-latest}
     restart: unless-stopped
     environment:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       MONGODB_URI: ${MONGODB_URI:?MONGODB_URI must be set}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     expose:
       - "8081"
 
   frontend:
-    image: ${DOCKERHUB_USERNAME}/insurancecrm-fe:${TAG:-latest}
+    image: ${DOCKERHUB_USERNAME}/insuredindex-fe:${TAG:-latest}
     restart: unless-stopped
     depends_on:
       - backend

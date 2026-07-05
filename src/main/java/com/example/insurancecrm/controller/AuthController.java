@@ -1,5 +1,6 @@
 package com.example.insurancecrm.controller;
 
+import com.example.insurancecrm.dto.request.ChangePasswordRequest;
 import com.example.insurancecrm.dto.request.LoginRequest;
 import com.example.insurancecrm.dto.request.RefreshTokenRequest;
 import com.example.insurancecrm.dto.response.ApiResponse;
@@ -13,6 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -46,5 +48,19 @@ public class AuthController {
     @PostMapping("/refresh")
     public ResponseEntity<ApiResponse<AuthResponse>> refresh(@Valid @RequestBody RefreshTokenRequest request) {
         return ResponseEntity.ok(ApiResponse.ok(authService.refresh(request.getRefreshToken())));
+    }
+
+    @Operation(summary = "Change password", description = "Change the current (authenticated) user's own password. " +
+            "Requires the current password. Also clears the 'must change password' flag set on a freshly-seeded " +
+            "admin account, so this is how that first forced password change is completed.")
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Password changed"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Current password incorrect, or new password too short", content = @Content)
+    })
+    @PostMapping("/change-password")
+    public ResponseEntity<ApiResponse<Void>> changePassword(Authentication authentication,
+                                                              @Valid @RequestBody ChangePasswordRequest request) {
+        authService.changePassword(authentication.getName(), request);
+        return ResponseEntity.ok(ApiResponse.noContent("Password changed successfully"));
     }
 }

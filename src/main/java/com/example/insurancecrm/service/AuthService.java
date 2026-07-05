@@ -1,6 +1,7 @@
 package com.example.insurancecrm.service;
 
 import com.example.insurancecrm.domain.User;
+import com.example.insurancecrm.dto.request.ChangePasswordRequest;
 import com.example.insurancecrm.dto.request.LoginRequest;
 import com.example.insurancecrm.dto.response.AuthResponse;
 import com.example.insurancecrm.exception.ApiException;
@@ -9,6 +10,7 @@ import com.example.insurancecrm.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -18,6 +20,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
     private final JwtUtil jwtUtil;
+    private final PasswordEncoder passwordEncoder;
 
     public AuthResponse login(LoginRequest request) {
         authenticationManager.authenticate(
@@ -49,6 +52,20 @@ public class AuthService {
         return response;
     }
 
+    /** Self-service password change — requires the current password, also clears mustChangePassword. */
+    public void changePassword(String email, ChangePasswordRequest request) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> ApiException.notFound("User not found"));
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw ApiException.badRequest("Current password is incorrect");
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.setMustChangePassword(false);
+        userRepository.save(user);
+    }
+
     private AuthResponse buildAuthResponse(User user) {
         String accessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getId(), user.getRole().name());
         String refreshToken = jwtUtil.generateRefreshToken(user.getEmail(), user.getId(), user.getRole().name());
@@ -60,6 +77,7 @@ public class AuthService {
                 .name(user.getName())
                 .email(user.getEmail())
                 .role(user.getRole())
+                .mustChangePassword(user.isMustChangePassword())
                 .build();
     }
 }
