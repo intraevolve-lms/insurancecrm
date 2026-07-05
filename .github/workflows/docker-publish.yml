@@ -7,14 +7,18 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Log in to Docker Hub
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -22,5 +26,6 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/insuredindex:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/insuredindex:${{ github.sha }}
+            ghcr.io/nawaz027/insuredindex:latest
+            ghcr.io/nawaz027/insuredindex:${{ github.sha }}
+            ghcr.io/nawaz027/insuredindex:v${{ github.run_number }}

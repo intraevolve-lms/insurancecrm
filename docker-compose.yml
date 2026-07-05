@@ -1,9 +1,11 @@
-# Reference compose file for deployment — pulls the images published by CI rather than
-# building from source. Requires a .env file (or exported vars) alongside this file with:
-#   DOCKERHUB_USERNAME=<your docker hub username>
+# Reference compose file for deployment — pulls the images published by CI (GitHub Container
+# Registry) rather than building from source. Images are public on ghcr.io, so pulling them
+# needs no login/credentials at all. Requires a .env file (or exported vars) alongside this
+# file with:
 #   JWT_SECRET=<32+ char random secret>
 #   MONGODB_URI=<Atlas connection string, includes the database name>
-#   TAG=latest   (or a specific commit SHA to pin a version)
+#   BACKEND_TAG=latest / FRONTEND_TAG=latest   (or e.g. v41 to pin/roll back a specific build —
+#     these are separate vars because the two images version independently, see DEPLOYMENT.md)
 #   ADMIN_EMAIL / ADMIN_PASSWORD  (only needed for the very first boot — see README's
 #     "First admin account" section; safe to remove from .env after that first boot)
 #
@@ -13,7 +15,7 @@
 
 services:
   backend:
-    image: ${DOCKERHUB_USERNAME}/insuredindex:${TAG:-latest}
+    image: ghcr.io/nawaz027/insuredindex:${BACKEND_TAG:-latest}
     restart: unless-stopped
     environment:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
@@ -24,7 +26,7 @@ services:
       - "8081"
 
   frontend:
-    image: ${DOCKERHUB_USERNAME}/insuredindex-fe:${TAG:-latest}
+    image: ghcr.io/nawaz027/insuredindex-fe:${FRONTEND_TAG:-latest}
     restart: unless-stopped
     depends_on:
       - backend

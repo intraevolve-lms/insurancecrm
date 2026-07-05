@@ -12,7 +12,7 @@ and what the Oracle Cloud deployment needs from this side.
 ```
 GitHub (push to main/master)
   → GitHub Actions builds Docker image
-  → pushes to Docker Hub (nawaz027/insuredindex, nawaz027/insuredindex-fe)
+  → pushes to GitHub Container Registry (ghcr.io/nawaz027/insuredindex, ghcr.io/nawaz027/insuredindex-fe)
 
 Oracle Cloud VM
   → docker compose pull && docker compose up -d
@@ -40,19 +40,23 @@ that proxy target needs updating to match.
 
 ## CI/CD (GitHub Actions)
 
-`.github/workflows/docker-publish.yml` in **both** repos builds and pushes to Docker Hub on every
-push to `main` or `master` (this repo's current default branch is `master` — rename it to `main`
-if you'd rather match convention, the workflow triggers on either).
+`.github/workflows/docker-publish.yml` in **both** repos builds and pushes to **GitHub Container
+Registry (ghcr.io)** on every push to `main` or `master` (this repo's current default branch is
+`master` — rename it to `main` if you'd rather match convention, the workflow triggers on either).
 
-**One-time setup**, in each repo's GitHub Settings → Secrets and variables → Actions:
+**No secrets to set up** — the workflow authenticates with the automatic, per-run `GITHUB_TOKEN`
+(via `permissions: packages: write` in the workflow itself), not a personal access token. This is
+what replaced the earlier Docker Hub setup, which needed `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN`
+repo secrets and broke when those credentials went stale.
 
-| Secret | Value |
-|---|---|
-| `DOCKERHUB_USERNAME` | Your Docker Hub username |
-| `DOCKERHUB_TOKEN` | A Docker Hub [access token](https://app.docker.com/settings/personal-access-tokens) (not your password) — needs Read & Write |
+**One manual, one-time step**: freshly-published GHCR packages default to **private** even from a
+public repo. After the first successful push, go to the package on GitHub (your profile → Packages
+→ `insuredindex` / `insuredindex-fe`) → Package settings → Change visibility → **Public**. After
+that, anyone can `docker pull ghcr.io/nawaz027/insuredindex:latest` with no login at all.
 
-Each push produces two tags: `:latest` and `:<commit-sha>` (so you can pin a specific version in
-`docker-compose.yml` via `TAG=<sha>` if `:latest` ever needs rolling back).
+Each push produces three tags: `:latest`, `:<commit-sha>`, and `:v<run-number>` — the last one is
+GitHub Actions' own auto-incrementing build counter (1, 2, 3, ...), a human-friendly alternative to
+remembering a commit SHA. See "Rolling back a deploy" below.
 
 ## MongoDB Atlas setup
 
@@ -130,10 +134,11 @@ has `mustChangePassword` set, so the frontend forces a password change (`POST
 
 ```bash
 # .env alongside docker-compose.yml:
-#   DOCKERHUB_USERNAME=nawaz027
 #   JWT_SECRET=...
 #   MONGODB_URI=...
-#   TAG=latest
+#   BACKEND_TAG=latest
+#   FRONTEND_TAG=latest
+#   ADMIN_EMAIL / ADMIN_PASSWORD   (first boot only)
 
 docker compose pull
 docker compose up -d
@@ -143,6 +148,25 @@ This is the piece that's the Oracle Cloud teammate's to run/adapt — VM sizing,
 list rules (80/443 in, plus whatever's needed for SSH), and TLS termination (e.g. a Caddy or
 nginx reverse proxy in front with Let's Encrypt, since neither app container currently handles
 HTTPS) aren't covered here.
+
+### Rolling back a deploy
+
+Every push builds and publishes a `:v<N>` tag (`N` = that repo's own GitHub Actions run number,
+climbing 1, 2, 3, ... — check that repo's Actions tab, or its "Packages" page, to see which `N`
+corresponds to which commit/date). **Backend and frontend version independently** — they're
+separate repos with separate CI runs, so `v12` of the backend and `v12` of the frontend are not
+necessarily from the same date or meant to run together. That's why `docker-compose.yml` has two
+separate tag variables rather than one shared `TAG`. To roll back, set the relevant one(s) to the
+last known-good build number and re-pull:
+
+```bash
+# .env — roll back just the backend, keep frontend on latest
+BACKEND_TAG=v41
+FRONTEND_TAG=latest
+
+docker compose pull
+docker compose up -d
+```
 
 ## Verifying a build locally
 
