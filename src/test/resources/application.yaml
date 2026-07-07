@@ -10,3 +10,5 @@ app:
   admin:
     email: ""
     password: ""
+  security:
+    agent-inactivity-timeout-minutes: 30

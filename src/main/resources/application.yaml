@@ -22,6 +22,9 @@ app:
     # No defaults on purpose — see DataInitializer for what happens if these are left unset.
     email: ${ADMIN_EMAIL:}
     password: ${ADMIN_PASSWORD:}
+  security:
+    # Agents (not admins) are auto-logged-out after this many minutes of inactivity.
+    agent-inactivity-timeout-minutes: 30
 
 logging:
   level:

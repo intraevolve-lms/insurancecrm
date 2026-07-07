@@ -17,7 +17,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,6 +44,7 @@ class AuthServiceTest {
     void setUp() {
         user = User.builder().id("user-1").name("Agent One").email("agent@test.com")
                 .password("encoded").role(Role.AGENT).active(true).build();
+        ReflectionTestUtils.setField(authService, "agentInactivityTimeoutMinutes", 30L);
     }
 
     private LoginRequest loginRequest(String email, String password) {
@@ -70,6 +73,7 @@ class AuthServiceTest {
         assertThat(response.getRefreshToken()).isEqualTo("refresh-token");
         assertThat(response.getUserId()).isEqualTo("user-1");
         assertThat(response.getRole()).isEqualTo(Role.AGENT);
+        assertThat(user.getLastActivityAt()).isNotNull();
         verify(authenticationManager).authenticate(any(UsernamePasswordAuthenticationToken.class));
     }
 
@@ -116,6 +120,32 @@ class AuthServiceTest {
 
         assertThatThrownBy(() -> authService.refresh("valid-refresh"))
                 .isInstanceOf(ApiException.class);
+    }
+
+    @Test
+    void refresh_agentIdleBeyondTimeout_isRejected() {
+        user.setLastActivityAt(LocalDateTime.now().minusMinutes(31));
+        when(jwtUtil.isRefreshToken("valid-refresh")).thenReturn(true);
+        when(jwtUtil.extractEmail("valid-refresh")).thenReturn("agent@test.com");
+        when(userRepository.findByEmail("agent@test.com")).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> authService.refresh("valid-refresh"))
+                .isInstanceOf(ApiException.class);
+        verify(jwtUtil, never()).generateAccessToken(any(), any(), any());
+    }
+
+    @Test
+    void refresh_agentWithinTimeout_succeedsAndRefreshesLastActivity() {
+        user.setLastActivityAt(LocalDateTime.now().minusMinutes(29));
+        when(jwtUtil.isRefreshToken("valid-refresh")).thenReturn(true);
+        when(jwtUtil.extractEmail("valid-refresh")).thenReturn("agent@test.com");
+        when(userRepository.findByEmail("agent@test.com")).thenReturn(Optional.of(user));
+        when(jwtUtil.generateAccessToken(any(), any(), any())).thenReturn("new-access-token");
+        when(jwtUtil.generateRefreshToken(any(), any(), any())).thenReturn("new-refresh-token-unused");
+
+        authService.refresh("valid-refresh");
+
+        assertThat(user.getLastActivityAt()).isAfter(LocalDateTime.now().minusMinutes(1));
     }
 
     @Test
