@@ -79,9 +79,11 @@ class CustomerControllerAccessIT {
     private void cleanUp() {
         userRepository.findByEmail(ADMIN_EMAIL).ifPresent(userRepository::delete);
         userRepository.findByEmail(AGENT_EMAIL).ifPresent(userRepository::delete);
-        customerRepository.findAll().stream()
-                .filter(c -> "Access Test Customer".equals(c.getName()))
-                .forEach(customerRepository::delete);
+        // Matched by id, not name — update_admin_isAllowed() renames the seeded customer,
+        // so a name-based filter here would miss it and leak the record permanently.
+        if (customerId != null) {
+            customerRepository.findById(customerId).ifPresent(customerRepository::delete);
+        }
     }
 
     @Test
