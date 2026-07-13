@@ -18,6 +18,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.mongodb.core.MongoTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -35,6 +36,7 @@ class LeadServiceTest {
     @Mock private LeadRepository leadRepository;
     @Mock private UserRepository userRepository;
     @Mock private CustomerRepository customerRepository;
+    @Mock private MongoTemplate mongoTemplate;
 
     @InjectMocks
     private LeadService leadService;
@@ -51,25 +53,10 @@ class LeadServiceTest {
         lenient().when(userRepository.findAllById(anyList())).thenReturn(List.of());
     }
 
-    @Test
-    void getAll_admin_returnsEveryLead() {
-        when(leadRepository.findAll()).thenReturn(List.of(agentOwnedLead));
-
-        List<LeadResponse> result = leadService.getAll("admin-1", true);
-
-        assertThat(result).hasSize(1);
-        verify(leadRepository, never()).findByAssignedAgentId(any());
-    }
-
-    @Test
-    void getAll_agent_returnsOnlyOwnLeads() {
-        when(leadRepository.findByAssignedAgentId("agent-1")).thenReturn(List.of(agentOwnedLead));
-
-        leadService.getAll("agent-1", false);
-
-        verify(leadRepository).findByAssignedAgentId("agent-1");
-        verify(leadRepository, never()).findAll();
-    }
+    // getAll now builds a dynamic MongoTemplate query (pagination, status/outcome/search filters,
+    // agent scoping) — covered by LeadPaginationIT against a real database instead, since a
+    // Mockito mock of MongoTemplate can't meaningfully verify query correctness. getSummary's
+    // count-based aggregation is likewise covered there.
 
     @Test
     void getById_nonOwningAgent_throwsForbidden() {

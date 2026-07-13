@@ -18,6 +18,7 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.mongodb.core.MongoTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -36,6 +37,7 @@ class CustomerServiceTest {
     @Mock private CustomerRepository customerRepository;
     @Mock private UserRepository userRepository;
     @Mock private AuditLogRepository auditLogRepository;
+    @Mock private MongoTemplate mongoTemplate;
 
     @InjectMocks
     private CustomerService customerService;
@@ -57,66 +59,9 @@ class CustomerServiceTest {
                 .build();
     }
 
-    // ── getAllCustomers ──────────────────────────────────────────────
-
-    @Test
-    void getAllCustomers_admin_returnsEveryCustomer() {
-        when(customerRepository.findAll()).thenReturn(List.of(agentOwnedCustomer, otherCustomer));
-        when(userRepository.findAllById(anyList())).thenReturn(List.of());
-
-        List<CustomerResponse> result = customerService.getAllCustomers("admin-1", true);
-
-        assertThat(result).hasSize(2);
-        verify(customerRepository).findAll();
-        verify(customerRepository, never()).findByAssignedAgentId(any());
-    }
-
-    @Test
-    void getAllCustomers_agent_returnsOnlyOwnAssignedCustomers() {
-        when(customerRepository.findByAssignedAgentId("agent-1")).thenReturn(List.of(agentOwnedCustomer));
-        when(userRepository.findAllById(anyList())).thenReturn(List.of());
-
-        List<CustomerResponse> result = customerService.getAllCustomers("agent-1", false);
-
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).getId()).isEqualTo("cust-1");
-        verify(customerRepository, never()).findAll();
-    }
-
-    // ── search — regression test for the agent-search authorization leak ──
-
-    @Test
-    void search_admin_returnsAllMatchesUnfiltered() {
-        when(customerRepository.searchByNameOrPhone("cust")).thenReturn(List.of(agentOwnedCustomer, otherCustomer));
-        when(userRepository.findAllById(anyList())).thenReturn(List.of());
-
-        List<CustomerResponse> result = customerService.search("cust", "admin-1", true);
-
-        assertThat(result).extracting(CustomerResponse::getId).containsExactlyInAnyOrder("cust-1", "cust-2");
-    }
-
-    @Test
-    void search_agent_onlySeesOwnAssignedMatches() {
-        // Backend previously ignored currentUserId/isAdmin entirely on search, leaking every
-        // matching customer app-wide to any agent. This locks in the fix.
-        when(customerRepository.searchByNameOrPhone("cust")).thenReturn(List.of(agentOwnedCustomer, otherCustomer));
-        when(userRepository.findAllById(anyList())).thenReturn(List.of());
-
-        List<CustomerResponse> result = customerService.search("cust", "agent-1", false);
-
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).getId()).isEqualTo("cust-1");
-    }
-
-    @Test
-    void search_agent_withNoMatchingAssignedCustomers_returnsEmpty() {
-        when(customerRepository.searchByNameOrPhone("other")).thenReturn(List.of(otherCustomer));
-        when(userRepository.findAllById(anyList())).thenReturn(List.of());
-
-        List<CustomerResponse> result = customerService.search("other", "agent-1", false);
-
-        assertThat(result).isEmpty();
-    }
+    // getAllCustomers/search now build dynamic MongoTemplate queries (pagination, sort, outcome
+    // filter, agent scoping) — covered by CustomerPaginationIT against a real database instead,
+    // since a Mockito mock of MongoTemplate can't meaningfully verify query correctness.
 
     // ── findByIdForAgent (object-level access control) ──────────────
 

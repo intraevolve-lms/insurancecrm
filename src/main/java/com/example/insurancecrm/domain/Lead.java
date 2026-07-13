@@ -33,6 +33,7 @@ public class Lead {
 
     private LeadSource source;
 
+    @Indexed
     private LeadStatus status;
 
     private PolicyType interestedIn;
@@ -41,6 +42,7 @@ public class Lead {
 
     private BigDecimal estimatedPremium;
 
+    @Indexed
     private String assignedAgentId;
 
     private LocalDateTime followUpDate;
@@ -48,6 +50,7 @@ public class Lead {
     private LocalDateTime lastContactedAt;
 
     // Most recent outcome logged via Log Activity — drives the dashboard call-outcome funnel
+    @Indexed
     private CommunicationOutcome lastOutcome;
 
     // Set when status = CONVERTED

@@ -6,6 +6,8 @@ import com.example.insurancecrm.domain.User;
 import com.example.insurancecrm.dto.request.CreateCustomerRequest;
 import com.example.insurancecrm.dto.response.BulkAssignResponse;
 import com.example.insurancecrm.dto.response.CustomerResponse;
+import com.example.insurancecrm.dto.response.PagedResponse;
+import com.example.insurancecrm.enums.CommunicationOutcome;
 import com.example.insurancecrm.exception.ApiException;
 import com.example.insurancecrm.repository.AuditLogRepository;
 import com.example.insurancecrm.repository.CustomerRepository;
@@ -13,9 +15,18 @@ import com.example.insurancecrm.repository.UserRepository;
 import com.example.insurancecrm.security.AccessControl;
 import com.example.insurancecrm.util.PhoneUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -28,14 +39,17 @@ public class CustomerService {
     private final CustomerRepository customerRepository;
     private final UserRepository userRepository;
     private final AuditLogRepository auditLogRepository;
+    private final MongoTemplate mongoTemplate;
 
     private static final String CUSTOMER_ENTITY_TYPE = "CUSTOMER";
 
-    public List<CustomerResponse> getAllCustomers(String currentUserId, boolean isAdmin) {
-        List<Customer> customers = isAdmin
-                ? customerRepository.findAll()
-                : customerRepository.findByAssignedAgentId(currentUserId);
-        return enrichAndMap(customers);
+    public PagedResponse<CustomerResponse> getAllCustomers(String currentUserId, boolean isAdmin,
+                                                            int page, int size, String sortBy, String sortDir,
+                                                            CommunicationOutcome outcome) {
+        List<Criteria> criteria = new ArrayList<>();
+        if (!isAdmin) criteria.add(Criteria.where("assignedAgentId").is(currentUserId));
+        if (outcome != null) criteria.add(Criteria.where("lastOutcome").is(outcome));
+        return findPaged(criteria, page, size, sortBy, sortDir);
     }
 
     public CustomerResponse getById(String id) {
@@ -142,14 +156,52 @@ public class CustomerService {
                 .build();
     }
 
-    public List<CustomerResponse> search(String query, String currentUserId, boolean isAdmin) {
-        List<Customer> results = customerRepository.searchByNameOrPhone(query);
-        if (!isAdmin) {
-            results = results.stream()
-                    .filter(c -> currentUserId.equals(c.getAssignedAgentId()))
-                    .toList();
+    public PagedResponse<CustomerResponse> search(String query, String currentUserId, boolean isAdmin,
+                                                   int page, int size, String sortBy, String sortDir,
+                                                   CommunicationOutcome outcome) {
+        List<Criteria> criteria = new ArrayList<>();
+        if (!isAdmin) criteria.add(Criteria.where("assignedAgentId").is(currentUserId));
+        if (outcome != null) criteria.add(Criteria.where("lastOutcome").is(outcome));
+        if (query != null && !query.isBlank()) {
+            criteria.add(new Criteria().orOperator(
+                    Criteria.where("name").regex(query, "i"),
+                    Criteria.where("phone").regex(query, "i")));
         }
-        return enrichAndMap(results);
+        return findPaged(criteria, page, size, sortBy, sortDir);
+    }
+
+    private PagedResponse<CustomerResponse> findPaged(List<Criteria> criteria, int page, int size,
+                                                       String sortBy, String sortDir) {
+        Pageable pageable = buildPageable(page, size, sortBy, sortDir);
+        Query baseQuery = criteria.isEmpty() ? new Query() : new Query(new Criteria().andOperator(criteria));
+
+        long total = mongoTemplate.count(baseQuery, Customer.class);
+        Query pagedQuery = criteria.isEmpty() ? new Query() : new Query(new Criteria().andOperator(criteria));
+        pagedQuery.with(pageable);
+        List<Customer> content = mongoTemplate.find(pagedQuery, Customer.class);
+
+        Page<Customer> pageResult = PageableExecutionUtils.getPage(content, pageable, () -> total);
+        return PagedResponse.<CustomerResponse>builder()
+                .content(enrichAndMap(pageResult.getContent()))
+                .page(pageResult.getNumber())
+                .size(pageResult.getSize())
+                .totalElements(pageResult.getTotalElements())
+                .totalPages(pageResult.getTotalPages())
+                .build();
+    }
+
+    private Pageable buildPageable(int page, int size, String sortBy, String sortDir) {
+        Sort.Direction direction = "asc".equalsIgnoreCase(sortDir) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        String field = switch (sortBy == null ? "" : sortBy) {
+            case "premium" -> "lastYearPremium";
+            case "expiryDate" -> "expiryDate";
+            default -> "createdAt";
+        };
+        // No explicit sort requested — default to newest-first rather than mixing in premium/expiry semantics.
+        if (sortBy == null || sortBy.isBlank()) {
+            return PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        }
+        return PageRequest.of(page, size, Sort.by(direction, field));
     }
 
     public void delete(String id) {
