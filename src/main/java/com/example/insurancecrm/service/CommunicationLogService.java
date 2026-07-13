@@ -11,6 +11,7 @@ import com.example.insurancecrm.repository.CommunicationLogRepository;
 import com.example.insurancecrm.repository.CustomerRepository;
 import com.example.insurancecrm.repository.LeadRepository;
 import com.example.insurancecrm.repository.UserRepository;
+import com.example.insurancecrm.security.AccessControl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -26,25 +27,28 @@ public class CommunicationLogService {
     private final LeadRepository leadRepository;
     private final UserRepository userRepository;
 
-    public List<CommunicationLogResponse> getByCustomer(String customerId) {
-        customerRepository.findById(customerId)
+    public List<CommunicationLogResponse> getByCustomer(String customerId, String currentUserId, boolean isAdmin) {
+        Customer customer = customerRepository.findById(customerId)
                 .orElseThrow(() -> ApiException.notFound("Customer not found: " + customerId));
+        AccessControl.requireOwnerOrAdmin(customer.getAssignedAgentId(), currentUserId, isAdmin);
         return logRepository.findByCustomerIdOrderByLoggedAtDesc(customerId)
                 .stream().map(this::toResponse).toList();
     }
 
-    public List<CommunicationLogResponse> getByLead(String leadId) {
-        leadRepository.findById(leadId)
+    public List<CommunicationLogResponse> getByLead(String leadId, String currentUserId, boolean isAdmin) {
+        Lead lead = leadRepository.findById(leadId)
                 .orElseThrow(() -> ApiException.notFound("Lead not found: " + leadId));
+        AccessControl.requireOwnerOrAdmin(lead.getAssignedAgentId(), currentUserId, isAdmin);
         return logRepository.findByLeadIdOrderByLoggedAtDesc(leadId)
                 .stream().map(this::toResponse).toList();
     }
 
     public CommunicationLogResponse logForCustomer(String customerId,
                                                     CreateCommunicationLogRequest req,
-                                                    String userId) {
+                                                    String userId, boolean isAdmin) {
         Customer customer = customerRepository.findById(customerId)
                 .orElseThrow(() -> ApiException.notFound("Customer not found: " + customerId));
+        AccessControl.requireOwnerOrAdmin(customer.getAssignedAgentId(), userId, isAdmin);
 
         User agent = userRepository.findById(userId)
                 .orElseThrow(() -> ApiException.notFound("User not found: " + userId));
@@ -71,9 +75,10 @@ public class CommunicationLogService {
 
     public CommunicationLogResponse logForLead(String leadId,
                                                CreateCommunicationLogRequest req,
-                                               String userId) {
+                                               String userId, boolean isAdmin) {
         Lead lead = leadRepository.findById(leadId)
                 .orElseThrow(() -> ApiException.notFound("Lead not found: " + leadId));
+        AccessControl.requireOwnerOrAdmin(lead.getAssignedAgentId(), userId, isAdmin);
 
         User agent = userRepository.findById(userId)
                 .orElseThrow(() -> ApiException.notFound("User not found: " + userId));

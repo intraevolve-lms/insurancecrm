@@ -28,15 +28,16 @@ public class CommunicationLogController {
     // ── Customer communications ───────────────────────────────────
 
     @Operation(summary = "Get communication history for a customer",
-               description = "Returns all logged interactions for this customer, newest first.")
+               description = "Returns all logged interactions for this customer, newest first. Agents can only access their own assigned customers; admins can access any.")
     @GetMapping("/api/customers/{customerId}/communications")
     public ResponseEntity<ApiResponse<List<CommunicationLogResponse>>> getByCustomer(
-            @PathVariable String customerId) {
-        return ResponseEntity.ok(ApiResponse.ok(logService.getByCustomer(customerId)));
+            @PathVariable String customerId, Authentication auth) {
+        return ResponseEntity.ok(ApiResponse.ok(logService.getByCustomer(customerId, getUserId(auth), isAdmin(auth))));
     }
 
     @Operation(summary = "Log a communication for a customer",
-               description = "Records an interaction (call, WhatsApp, email, meeting, site visit) against a customer.")
+               description = "Records an interaction (call, WhatsApp, email, meeting, site visit) against a customer. " +
+                       "Agents can only log against their own assigned customers; admins can log against any.")
     @PostMapping("/api/customers/{customerId}/communications")
     public ResponseEntity<ApiResponse<CommunicationLogResponse>> logForCustomer(
             @PathVariable String customerId,
@@ -44,20 +45,22 @@ public class CommunicationLogController {
             Authentication auth) {
         String userId = getUserId(auth);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.created(logService.logForCustomer(customerId, request, userId)));
+                .body(ApiResponse.created(logService.logForCustomer(customerId, request, userId, isAdmin(auth))));
     }
 
     // ── Lead communications ───────────────────────────────────────
 
-    @Operation(summary = "Get communication history for a lead")
+    @Operation(summary = "Get communication history for a lead",
+               description = "Agents can only access their own assigned leads; admins can access any.")
     @GetMapping("/api/leads/{leadId}/communications")
     public ResponseEntity<ApiResponse<List<CommunicationLogResponse>>> getByLead(
-            @PathVariable String leadId) {
-        return ResponseEntity.ok(ApiResponse.ok(logService.getByLead(leadId)));
+            @PathVariable String leadId, Authentication auth) {
+        return ResponseEntity.ok(ApiResponse.ok(logService.getByLead(leadId, getUserId(auth), isAdmin(auth))));
     }
 
     @Operation(summary = "Log a communication for a lead",
-               description = "Records an interaction against a lead. Useful for tracking outreach during the sales pipeline.")
+               description = "Records an interaction against a lead. Useful for tracking outreach during the sales pipeline. " +
+                       "Agents can only log against their own assigned leads; admins can log against any.")
     @PostMapping("/api/leads/{leadId}/communications")
     public ResponseEntity<ApiResponse<CommunicationLogResponse>> logForLead(
             @PathVariable String leadId,
@@ -65,7 +68,7 @@ public class CommunicationLogController {
             Authentication auth) {
         String userId = getUserId(auth);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.created(logService.logForLead(leadId, request, userId)));
+                .body(ApiResponse.created(logService.logForLead(leadId, request, userId, isAdmin(auth))));
     }
 
     // ── Delete ────────────────────────────────────────────────────
@@ -85,5 +88,9 @@ public class CommunicationLogController {
     private String getUserId(Authentication auth) {
         return userRepository.findByEmail(auth.getName())
                 .map(u -> u.getId()).orElse(null);
+    }
+
+    private boolean isAdmin(Authentication auth) {
+        return auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
     }
 }
