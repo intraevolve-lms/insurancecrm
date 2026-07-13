@@ -1,6 +1,9 @@
 spring:
   mongodb:
-    uri: mongodb://localhost:27017/insuredindex_test
+    # Distinct from the dev database (insuredindex_test in .env) on purpose — integration
+    # tests write and delete real documents, and a shared name previously let a cleanup bug
+    # leak test rows straight into dev data. Never point this at the same database as .env.
+    uri: mongodb://localhost:27017/insuredindex_it
 
 app:
   jwt:
