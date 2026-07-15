@@ -8,7 +8,6 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
@@ -26,7 +25,7 @@ public class LeadResponse {
     private BigDecimal estimatedPremium;
     private String assignedAgentId;
     private String assignedAgentName;
-    private LocalDate followUpDate;
+    private LocalDateTime followUpDate;
     private LocalDateTime lastContactedAt;
     private CommunicationOutcome lastOutcome;
     private String convertedCustomerId;

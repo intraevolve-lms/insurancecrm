@@ -50,13 +50,13 @@ class CommunicationLogServiceTest {
 
     @Test
     void logForCustomer_updatesCustomerLastOutcome() {
-        Customer customer = Customer.builder().id("cust-1").build();
+        Customer customer = Customer.builder().id("cust-1").assignedAgentId("agent-1").build();
         when(customerRepository.findById("cust-1")).thenReturn(Optional.of(customer));
         when(userRepository.findById("agent-1")).thenReturn(Optional.of(agent));
         when(logRepository.save(any(CommunicationLog.class))).thenAnswer(inv -> inv.getArgument(0));
         when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        communicationLogService.logForCustomer("cust-1", req(CommunicationOutcome.RINGING), "agent-1");
+        communicationLogService.logForCustomer("cust-1", req(CommunicationOutcome.RINGING), "agent-1", false);
 
         ArgumentCaptor<Customer> captor = ArgumentCaptor.forClass(Customer.class);
         verify(customerRepository).save(captor.capture());
@@ -65,13 +65,13 @@ class CommunicationLogServiceTest {
 
     @Test
     void logForCustomer_savesLogWithCorrectCustomerIdAndLoggedBy() {
-        Customer customer = Customer.builder().id("cust-1").build();
+        Customer customer = Customer.builder().id("cust-1").assignedAgentId("agent-1").build();
         when(customerRepository.findById("cust-1")).thenReturn(Optional.of(customer));
         when(userRepository.findById("agent-1")).thenReturn(Optional.of(agent));
         when(logRepository.save(any(CommunicationLog.class))).thenAnswer(inv -> inv.getArgument(0));
         when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        var response = communicationLogService.logForCustomer("cust-1", req(CommunicationOutcome.CALLBACK), "agent-1");
+        var response = communicationLogService.logForCustomer("cust-1", req(CommunicationOutcome.CALLBACK), "agent-1", false);
 
         assertThat(response.getCustomerId()).isEqualTo("cust-1");
         assertThat(response.getLeadId()).isNull();
@@ -84,22 +84,49 @@ class CommunicationLogServiceTest {
     void logForCustomer_missingCustomer_throwsNotFound() {
         when(customerRepository.findById("missing")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> communicationLogService.logForCustomer("missing", req(CommunicationOutcome.RINGING), "agent-1"))
+        assertThatThrownBy(() -> communicationLogService.logForCustomer("missing", req(CommunicationOutcome.RINGING), "agent-1", false))
                 .isInstanceOf(ApiException.class);
         verify(logRepository, never()).save(any());
+    }
+
+    @Test
+    void logForCustomer_nonOwningAgent_isForbidden() {
+        // Regression: this endpoint previously let any authenticated agent log against any
+        // customer, not just their own assigned ones — the same class of leak already fixed
+        // for customer search.
+        Customer customer = Customer.builder().id("cust-1").assignedAgentId("agent-1").build();
+        when(customerRepository.findById("cust-1")).thenReturn(Optional.of(customer));
+
+        assertThatThrownBy(() -> communicationLogService.logForCustomer("cust-1", req(CommunicationOutcome.RINGING), "agent-2", false))
+                .isInstanceOf(ApiException.class);
+        verify(logRepository, never()).save(any());
+    }
+
+    @Test
+    void logForCustomer_admin_canLogAgainstAnyCustomer() {
+        Customer customer = Customer.builder().id("cust-1").assignedAgentId("agent-1").build();
+        User admin = User.builder().id("admin-1").name("Admin One").build();
+        when(customerRepository.findById("cust-1")).thenReturn(Optional.of(customer));
+        when(userRepository.findById("admin-1")).thenReturn(Optional.of(admin));
+        when(logRepository.save(any(CommunicationLog.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var response = communicationLogService.logForCustomer("cust-1", req(CommunicationOutcome.RINGING), "admin-1", true);
+
+        assertThat(response.getLoggedBy()).isEqualTo("admin-1");
     }
 
     // ── logForLead ────────────────────────────────────────────────────
 
     @Test
     void logForLead_updatesLeadLastOutcome() {
-        Lead lead = Lead.builder().id("lead-1").build();
+        Lead lead = Lead.builder().id("lead-1").assignedAgentId("agent-1").build();
         when(leadRepository.findById("lead-1")).thenReturn(Optional.of(lead));
         when(userRepository.findById("agent-1")).thenReturn(Optional.of(agent));
         when(logRepository.save(any(CommunicationLog.class))).thenAnswer(inv -> inv.getArgument(0));
         when(leadRepository.save(any(Lead.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        communicationLogService.logForLead("lead-1", req(CommunicationOutcome.PROSPECT), "agent-1");
+        communicationLogService.logForLead("lead-1", req(CommunicationOutcome.PROSPECT), "agent-1", false);
 
         ArgumentCaptor<Lead> captor = ArgumentCaptor.forClass(Lead.class);
         verify(leadRepository).save(captor.capture());
@@ -110,8 +137,32 @@ class CommunicationLogServiceTest {
     void logForLead_missingLead_throwsNotFound() {
         when(leadRepository.findById("missing")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> communicationLogService.logForLead("missing", req(CommunicationOutcome.RINGING), "agent-1"))
+        assertThatThrownBy(() -> communicationLogService.logForLead("missing", req(CommunicationOutcome.RINGING), "agent-1", false))
                 .isInstanceOf(ApiException.class);
+    }
+
+    @Test
+    void logForLead_nonOwningAgent_isForbidden() {
+        Lead lead = Lead.builder().id("lead-1").assignedAgentId("agent-1").build();
+        when(leadRepository.findById("lead-1")).thenReturn(Optional.of(lead));
+
+        assertThatThrownBy(() -> communicationLogService.logForLead("lead-1", req(CommunicationOutcome.RINGING), "agent-2", false))
+                .isInstanceOf(ApiException.class);
+        verify(logRepository, never()).save(any());
+    }
+
+    @Test
+    void logForLead_admin_canLogAgainstAnyLead() {
+        Lead lead = Lead.builder().id("lead-1").assignedAgentId("agent-1").build();
+        User admin = User.builder().id("admin-1").name("Admin One").build();
+        when(leadRepository.findById("lead-1")).thenReturn(Optional.of(lead));
+        when(userRepository.findById("admin-1")).thenReturn(Optional.of(admin));
+        when(logRepository.save(any(CommunicationLog.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(leadRepository.save(any(Lead.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var response = communicationLogService.logForLead("lead-1", req(CommunicationOutcome.RINGING), "admin-1", true);
+
+        assertThat(response.getLoggedBy()).isEqualTo("admin-1");
     }
 
     // ── getByCustomer / getByLead ─────────────────────────────────────
@@ -120,14 +171,61 @@ class CommunicationLogServiceTest {
     void getByCustomer_missingCustomer_throwsNotFound() {
         when(customerRepository.findById("missing")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> communicationLogService.getByCustomer("missing")).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> communicationLogService.getByCustomer("missing", "agent-1", false)).isInstanceOf(ApiException.class);
+    }
+
+    @Test
+    void getByCustomer_owningAgent_succeeds() {
+        Customer customer = Customer.builder().id("cust-1").assignedAgentId("agent-1").build();
+        when(customerRepository.findById("cust-1")).thenReturn(Optional.of(customer));
+        when(logRepository.findByCustomerIdOrderByLoggedAtDesc("cust-1")).thenReturn(java.util.List.of());
+
+        assertThat(communicationLogService.getByCustomer("cust-1", "agent-1", false)).isEmpty();
+    }
+
+    @Test
+    void getByCustomer_nonOwningAgent_isForbidden() {
+        // Regression: previously any authenticated agent could read any customer's call
+        // history by ID, regardless of assignment.
+        Customer customer = Customer.builder().id("cust-1").assignedAgentId("agent-1").build();
+        when(customerRepository.findById("cust-1")).thenReturn(Optional.of(customer));
+
+        assertThatThrownBy(() -> communicationLogService.getByCustomer("cust-1", "agent-2", false))
+                .isInstanceOf(ApiException.class);
+    }
+
+    @Test
+    void getByCustomer_admin_canReadAnyCustomer() {
+        Customer customer = Customer.builder().id("cust-1").assignedAgentId("agent-1").build();
+        when(customerRepository.findById("cust-1")).thenReturn(Optional.of(customer));
+        when(logRepository.findByCustomerIdOrderByLoggedAtDesc("cust-1")).thenReturn(java.util.List.of());
+
+        assertThat(communicationLogService.getByCustomer("cust-1", "admin-1", true)).isEmpty();
     }
 
     @Test
     void getByLead_missingLead_throwsNotFound() {
         when(leadRepository.findById("missing")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> communicationLogService.getByLead("missing")).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> communicationLogService.getByLead("missing", "agent-1", false)).isInstanceOf(ApiException.class);
+    }
+
+    @Test
+    void getByLead_nonOwningAgent_isForbidden() {
+        Lead lead = Lead.builder().id("lead-1").assignedAgentId("agent-1").build();
+        when(leadRepository.findById("lead-1")).thenReturn(Optional.of(lead));
+
+        assertThatThrownBy(() -> communicationLogService.getByLead("lead-1", "agent-2", false))
+                .isInstanceOf(ApiException.class);
+    }
+
+    @Test
+    void getByLead_admin_canReadAnyLead() {
+        Lead lead = Lead.builder().id("lead-1").assignedAgentId("agent-1").build();
+        when(leadRepository.findById("lead-1")).thenReturn(Optional.of(lead));
+        when(logRepository.findByLeadIdOrderByLoggedAtDesc("lead-1")).thenReturn(java.util.List.of());
+
+        assertThat(communicationLogService.getByLead("lead-1", "admin-1", true)).isEmpty();
     }
 
     // ── delete ──────────────────────────────────────────────────────

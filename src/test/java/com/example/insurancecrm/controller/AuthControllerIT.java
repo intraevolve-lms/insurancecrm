@@ -43,19 +43,29 @@ class AuthControllerIT {
 
     private static final String EMAIL = "authit-agent@test.com";
     private static final String PASSWORD = "Password@123";
+    private static final String ADMIN_EMAIL = "authit-admin@test.com";
+    private static final String ADMIN_PASSWORD = "Password@123";
 
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).apply(springSecurity()).build();
-        userRepository.findByEmail(EMAIL).ifPresent(userRepository::delete);
+        cleanUp();
         userRepository.save(User.builder()
                 .name("Auth IT Agent").email(EMAIL).password(passwordEncoder.encode(PASSWORD))
                 .role(Role.AGENT).active(true).createdAt(LocalDateTime.now()).build());
+        userRepository.save(User.builder()
+                .name("Auth IT Admin").email(ADMIN_EMAIL).password(passwordEncoder.encode(ADMIN_PASSWORD))
+                .role(Role.ADMIN).active(true).createdAt(LocalDateTime.now()).build());
     }
 
     @AfterEach
     void tearDown() {
+        cleanUp();
+    }
+
+    private void cleanUp() {
         userRepository.findByEmail(EMAIL).ifPresent(userRepository::delete);
+        userRepository.findByEmail(ADMIN_EMAIL).ifPresent(userRepository::delete);
     }
 
     private String loginBody(String email, String password) throws Exception {
@@ -142,9 +152,9 @@ class AuthControllerIT {
                 .andExpect(status().isForbidden());
     }
 
-    private String loginAndGetAccessToken() throws Exception {
+    private String loginAndGetAccessToken(String email, String password) throws Exception {
         String loginResponse = mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content(loginBody(EMAIL, PASSWORD)))
+                        .content(loginBody(email, password)))
                 .andReturn().getResponse().getContentAsString();
         return objectMapper.readTree(loginResponse).get("data").get("token").asText();
     }
@@ -160,28 +170,46 @@ class AuthControllerIT {
     }
 
     @Test
-    void changePassword_correctCurrentPassword_updatesPasswordAndOldPasswordStopsWorking() throws Exception {
-        String accessToken = loginAndGetAccessToken();
+    void changePassword_agentRole_isForbidden() throws Exception {
+        // Agents cannot self-service change their password — only an admin can set it for them
+        // (via PUT /api/users/{id}).
+        String accessToken = loginAndGetAccessToken(EMAIL, PASSWORD);
 
         mockMvc.perform(post("/api/auth/change-password").header("Authorization", "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "currentPassword", PASSWORD, "newPassword", "NewPassword@456"))))
+                .andExpect(status().isForbidden());
+
+        // Old password still works — nothing changed.
+        mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody(EMAIL, PASSWORD)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void changePassword_correctCurrentPassword_updatesPasswordAndOldPasswordStopsWorking() throws Exception {
+        String accessToken = loginAndGetAccessToken(ADMIN_EMAIL, ADMIN_PASSWORD);
+
+        mockMvc.perform(post("/api/auth/change-password").header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "currentPassword", ADMIN_PASSWORD, "newPassword", "NewPassword@456"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
         mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content(loginBody(EMAIL, PASSWORD)))
+                        .content(loginBody(ADMIN_EMAIL, ADMIN_PASSWORD)))
                 .andExpect(status().isUnauthorized());
 
         mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content(loginBody(EMAIL, "NewPassword@456")))
+                        .content(loginBody(ADMIN_EMAIL, "NewPassword@456")))
                 .andExpect(status().isOk());
     }
 
     @Test
     void changePassword_wrongCurrentPassword_returns400AndLeavesPasswordUnchanged() throws Exception {
-        String accessToken = loginAndGetAccessToken();
+        String accessToken = loginAndGetAccessToken(ADMIN_EMAIL, ADMIN_PASSWORD);
 
         mockMvc.perform(post("/api/auth/change-password").header("Authorization", "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -190,18 +218,18 @@ class AuthControllerIT {
                 .andExpect(status().isBadRequest());
 
         mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content(loginBody(EMAIL, PASSWORD)))
+                        .content(loginBody(ADMIN_EMAIL, ADMIN_PASSWORD)))
                 .andExpect(status().isOk());
     }
 
     @Test
     void changePassword_newPasswordTooShort_returns400ValidationError() throws Exception {
-        String accessToken = loginAndGetAccessToken();
+        String accessToken = loginAndGetAccessToken(ADMIN_EMAIL, ADMIN_PASSWORD);
 
         mockMvc.perform(post("/api/auth/change-password").header("Authorization", "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "currentPassword", PASSWORD, "newPassword", "short"))))
+                                "currentPassword", ADMIN_PASSWORD, "newPassword", "short"))))
                 .andExpect(status().isBadRequest());
     }
 }

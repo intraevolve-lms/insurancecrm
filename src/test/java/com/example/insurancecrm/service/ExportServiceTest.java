@@ -37,50 +37,25 @@ class ExportServiceTest {
             .assignedAgentId("agent-2").build();
 
     @Test
-    void exportCustomers_admin_noFilter_exportsEveryCustomer() throws Exception {
+    void exportCustomers_noFilter_exportsEveryCustomer() throws Exception {
         when(customerRepository.findAll()).thenReturn(List.of(c1, c2));
         when(userRepository.findAll()).thenReturn(List.of());
 
-        byte[] bytes = exportService.exportCustomers(null, "admin-1", true);
+        byte[] bytes = exportService.exportCustomers(null);
 
         assertThat(rowCount(bytes)).isEqualTo(2);
         verify(customerRepository, never()).findByAssignedAgentId(any());
     }
 
     @Test
-    void exportCustomers_admin_withAgentFilter_exportsOnlyThatAgentsCustomers() throws Exception {
+    void exportCustomers_withAgentFilter_exportsOnlyThatAgentsCustomers() throws Exception {
         when(customerRepository.findByAssignedAgentId("agent-1")).thenReturn(List.of(c1));
         when(userRepository.findAll()).thenReturn(List.of());
 
-        byte[] bytes = exportService.exportCustomers("agent-1", "admin-1", true);
+        byte[] bytes = exportService.exportCustomers("agent-1");
 
         assertThat(rowCount(bytes)).isEqualTo(1);
         assertThat(firstDataRow(bytes)[1]).isEqualTo("Customer One");
-    }
-
-    @Test
-    void exportCustomers_agent_ignoresRequestedAgentIdFilter_seesOnlyOwnCustomers() throws Exception {
-        // Security-relevant: an agent must never be able to export another agent's book by
-        // passing a different agentId — the effective filter is always forced to their own id.
-        when(customerRepository.findByAssignedAgentId("agent-1")).thenReturn(List.of(c1));
-        when(userRepository.findAll()).thenReturn(List.of());
-
-        byte[] bytes = exportService.exportCustomers("agent-2", "agent-1", false);
-
-        verify(customerRepository).findByAssignedAgentId("agent-1");
-        verify(customerRepository, never()).findByAssignedAgentId("agent-2");
-        assertThat(rowCount(bytes)).isEqualTo(1);
-    }
-
-    @Test
-    void exportCustomers_agent_noFilterParam_stillScopedToOwnCustomers() throws Exception {
-        when(customerRepository.findByAssignedAgentId("agent-1")).thenReturn(List.of(c1));
-        when(userRepository.findAll()).thenReturn(List.of());
-
-        exportService.exportCustomers(null, "agent-1", false);
-
-        verify(customerRepository).findByAssignedAgentId("agent-1");
-        verify(customerRepository, never()).findAll();
     }
 
     @Test
@@ -89,7 +64,7 @@ class ExportServiceTest {
         when(customerRepository.findAll()).thenReturn(List.of(c1));
         when(userRepository.findAll()).thenReturn(List.of(agent));
 
-        byte[] bytes = exportService.exportCustomers(null, "admin-1", true);
+        byte[] bytes = exportService.exportCustomers(null);
 
         assertThat(firstDataRow(bytes)[10]).isEqualTo("Agent One");
     }
@@ -100,7 +75,7 @@ class ExportServiceTest {
         when(customerRepository.findAll()).thenReturn(List.of(unassigned));
         when(userRepository.findAll()).thenReturn(List.of());
 
-        byte[] bytes = exportService.exportCustomers(null, "admin-1", true);
+        byte[] bytes = exportService.exportCustomers(null);
 
         assertThat(firstDataRow(bytes)[10]).isEqualTo("—");
     }
@@ -110,7 +85,7 @@ class ExportServiceTest {
         when(customerRepository.findAll()).thenReturn(List.of());
         when(userRepository.findAll()).thenReturn(List.of());
 
-        byte[] bytes = exportService.exportCustomers(null, "admin-1", true);
+        byte[] bytes = exportService.exportCustomers(null);
 
         try (Workbook wb = WorkbookFactory.create(new ByteArrayInputStream(bytes))) {
             Sheet sheet = wb.getSheetAt(0);

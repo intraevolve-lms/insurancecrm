@@ -4,7 +4,7 @@
 # file with:
 #   JWT_SECRET=<32+ char random secret>
 #   MONGODB_URI=<Atlas connection string, includes the database name>
-#   BACKEND_TAG=latest / FRONTEND_TAG=latest   (or e.g. v41 to pin/roll back a specific build —
+#   BACKEND_TAG=latest / FRONTEND_TAG=latest   (or e.g. v1.2.3 to pin/roll back a specific build —
 #     these are separate vars because the two images version independently, see DEPLOYMENT.md)
 #   ADMIN_EMAIL / ADMIN_PASSWORD  (only needed for the very first boot — see README's
 #     "First admin account" section; safe to remove from .env after that first boot)

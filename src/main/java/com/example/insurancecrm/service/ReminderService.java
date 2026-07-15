@@ -13,7 +13,7 @@ import com.example.insurancecrm.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -31,7 +31,7 @@ public class ReminderService {
     private final UserRepository userRepository;
 
     public List<ReminderResponse> getReminders(String userId, boolean isAdmin) {
-        LocalDate today = LocalDate.now();
+        LocalDateTime now = LocalDateTime.now();
         List<ReminderResponse> reminders = new ArrayList<>();
 
         // Pre-fetch name maps
@@ -50,12 +50,13 @@ public class ReminderService {
         for (Lead l : leads) {
             if (l.getFollowUpDate() == null) continue;
             if (l.getStatus() == LeadStatus.CONVERTED || l.getStatus() == LeadStatus.LOST) continue;
-            if (!l.getFollowUpDate().isAfter(today)) {
-                long overdue = ChronoUnit.DAYS.between(l.getFollowUpDate(), today);
+            if (!l.getFollowUpDate().isAfter(now)) {
+                long overdue = ChronoUnit.DAYS.between(l.getFollowUpDate().toLocalDate(), now.toLocalDate());
                 reminders.add(ReminderResponse.builder()
                         .id(l.getId())
                         .type(ReminderType.LEAD_FOLLOWUP)
                         .entityId(l.getId())
+                        .entityKind(ReminderResponse.EntityKind.LEAD)
                         .entityName(l.getName())
                         .description("Follow up with lead" + (l.getPhone() != null ? " · " + l.getPhone() : ""))
                         .dueDate(l.getFollowUpDate())
@@ -76,15 +77,17 @@ public class ReminderService {
 
         for (CommunicationLog c : comms) {
             if (c.getFollowUpDate() == null) continue;
-            if (!c.getFollowUpDate().isAfter(today)) {
-                long overdue = ChronoUnit.DAYS.between(c.getFollowUpDate(), today);
-                String entityName = c.getCustomerId() != null
+            if (!c.getFollowUpDate().isAfter(now)) {
+                long overdue = ChronoUnit.DAYS.between(c.getFollowUpDate().toLocalDate(), now.toLocalDate());
+                boolean isCustomer = c.getCustomerId() != null;
+                String entityName = isCustomer
                         ? customerNames.getOrDefault(c.getCustomerId(), "Customer")
                         : leadNames.getOrDefault(c.getLeadId(), "Lead");
                 reminders.add(ReminderResponse.builder()
                         .id(c.getId())
                         .type(ReminderType.COMMUNICATION_FOLLOWUP)
-                        .entityId(c.getCustomerId() != null ? c.getCustomerId() : c.getLeadId())
+                        .entityId(isCustomer ? c.getCustomerId() : c.getLeadId())
+                        .entityKind(isCustomer ? ReminderResponse.EntityKind.CUSTOMER : ReminderResponse.EntityKind.LEAD)
                         .entityName(entityName)
                         .description("Follow up after " + c.getChannel().name().toLowerCase().replace("_", " "))
                         .dueDate(c.getFollowUpDate())

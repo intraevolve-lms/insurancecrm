@@ -22,12 +22,10 @@ public class ExportService {
     private final UserRepository userRepository;
 
     // ─── Customers ────────────────────────────────────────────────
-    public byte[] exportCustomers(String agentId, String currentUserId, boolean isAdmin) throws Exception {
-        // Agents can only ever export their own customers; the agentId filter is admin-only.
-        String effectiveAgentId = isAdmin ? agentId : currentUserId;
-
-        List<Customer> customers = effectiveAgentId != null
-                ? customerRepository.findByAssignedAgentId(effectiveAgentId)
+    /** Admin-only (enforced by @PreAuthorize on the controller) — agentId is an optional filter. */
+    public byte[] exportCustomers(String agentId) throws Exception {
+        List<Customer> customers = agentId != null
+                ? customerRepository.findByAssignedAgentId(agentId)
                 : customerRepository.findAll();
 
         Map<String, String> agentNames = userRepository.findAll().stream()

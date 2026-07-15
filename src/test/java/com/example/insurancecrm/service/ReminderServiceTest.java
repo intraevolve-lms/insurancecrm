@@ -17,7 +17,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,7 +35,7 @@ class ReminderServiceTest {
     @InjectMocks
     private ReminderService reminderService;
 
-    private final LocalDate today = LocalDate.now();
+    private final LocalDateTime today = LocalDateTime.now();
 
     @BeforeEach
     void setUp() {
@@ -44,7 +44,7 @@ class ReminderServiceTest {
         lenient().when(commLogRepository.findAll()).thenReturn(List.of());
     }
 
-    private Lead lead(String id, LocalDate followUpDate, LeadStatus status) {
+    private Lead lead(String id, LocalDateTime followUpDate, LeadStatus status) {
         return Lead.builder().id(id).name("Lead " + id).phone("900000000" + id.hashCode() % 10)
                 .followUpDate(followUpDate).status(status).assignedAgentId("agent-1").build();
     }
@@ -58,6 +58,7 @@ class ReminderServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getOverdueDays()).isZero();
         assertThat(result.get(0).getType()).isEqualTo(ReminderResponse.ReminderType.LEAD_FOLLOWUP);
+        assertThat(result.get(0).getEntityKind()).isEqualTo(ReminderResponse.EntityKind.LEAD);
     }
 
     @Test
@@ -149,6 +150,7 @@ class ReminderServiceTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getEntityName()).isEqualTo("Customer One");
+        assertThat(result.get(0).getEntityKind()).isEqualTo(ReminderResponse.EntityKind.CUSTOMER);
     }
 
     @Test
@@ -179,6 +181,10 @@ class ReminderServiceTest {
         List<ReminderResponse> result = reminderService.getReminders("agent-1", false);
 
         assertThat(result.get(0).getEntityName()).isEqualTo("Prospective Lead");
+        // Regression: the FE previously had no way to tell a COMMUNICATION_FOLLOWUP reminder
+        // logged against a lead apart from one logged against a customer, and mis-routed clicks
+        // on lead reminders to /customers/{leadId}.
+        assertThat(result.get(0).getEntityKind()).isEqualTo(ReminderResponse.EntityKind.LEAD);
     }
 
     @Test

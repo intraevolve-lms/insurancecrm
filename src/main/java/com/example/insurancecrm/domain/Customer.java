@@ -41,9 +41,11 @@ public class Customer {
 
     private LocalDate expiryDate;
 
+    @Indexed
     private String assignedAgentId;
 
     // Most recent outcome logged via Log Activity — drives the Agent Performance call-outcome funnel
+    @Indexed
     private CommunicationOutcome lastOutcome;
 
     private LocalDateTime createdAt;

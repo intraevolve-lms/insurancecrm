@@ -8,10 +8,22 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full tag history — needed to compute the next patch version
+
+      - name: Compute next version
+        id: version
+        run: |
+          MAJOR_MINOR=$(tr -d '[:space:]' < VERSION)
+          LAST_PATCH=$(git tag -l "v${MAJOR_MINOR}.*" | sed -E "s/^v${MAJOR_MINOR}\.([0-9]+)$/\1/" | sort -n | tail -1)
+          if [ -z "$LAST_PATCH" ]; then NEXT_PATCH=0; else NEXT_PATCH=$((LAST_PATCH + 1)); fi
+          VERSION="v${MAJOR_MINOR}.${NEXT_PATCH}"
+          echo "Building $VERSION (major.minor from VERSION file, patch auto-incremented)"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -34,5 +46,9 @@ jobs:
           push: true
           tags: |
             ghcr.io/intraevolve-lms/insuredindex:latest
-            ghcr.io/intraevolve-lms/insuredindex:${{ github.sha }}
-            ghcr.io/intraevolve-lms/insuredindex:v${{ github.run_number }}
+            ghcr.io/intraevolve-lms/insuredindex:${{ steps.version.outputs.version }}
+
+      - name: Tag this release in git
+        run: |
+          git tag ${{ steps.version.outputs.version }}
+          git push origin ${{ steps.version.outputs.version }}

@@ -1,10 +1,14 @@
 package com.example.insurancecrm.security;
 
+import com.example.insurancecrm.domain.User;
+import com.example.insurancecrm.enums.Role;
+import com.example.insurancecrm.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -14,6 +18,8 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.time.Duration;
+import java.time.LocalDateTime;
 
 @Component
 @RequiredArgsConstructor
@@ -21,6 +27,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final UserDetailsServiceImpl userDetailsService;
+    private final UserRepository userRepository;
+
+    @Value("${app.security.agent-inactivity-timeout-minutes}")
+    private long agentInactivityTimeoutMinutes;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -31,15 +41,35 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         if (token != null && jwtUtil.isAccessToken(token)
                 && SecurityContextHolder.getContext().getAuthentication() == null) {
             String email = jwtUtil.extractEmail(token);
-            UserDetails userDetails = userDetailsService.loadUserByUsername(email);
+            User user = userRepository.findByEmail(email).orElse(null);
 
-            UsernamePasswordAuthenticationToken auth =
-                    new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-            auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-            SecurityContextHolder.getContext().setAuthentication(auth);
+            if (user != null && !isRevoked(token, user) && !isInactiveAgent(user)) {
+                if (user.getRole() == Role.AGENT) {
+                    user.setLastActivityAt(LocalDateTime.now());
+                    userRepository.save(user);
+                }
+
+                UserDetails userDetails = userDetailsService.loadUserByUsername(email);
+                UsernamePasswordAuthenticationToken auth =
+                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(auth);
+            }
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    /** True if an admin force-logout invalidated this token after it was issued. */
+    private boolean isRevoked(String token, User user) {
+        return jwtUtil.isIssuedBefore(token, user.getTokensInvalidBefore());
+    }
+
+    /** True if this is an agent (never an admin) whose last recorded activity is older than the configured timeout. */
+    private boolean isInactiveAgent(User user) {
+        return user.getRole() == Role.AGENT
+                && user.getLastActivityAt() != null
+                && Duration.between(user.getLastActivityAt(), LocalDateTime.now()).toMinutes() >= agentInactivityTimeoutMinutes;
     }
 
     private String extractToken(HttpServletRequest request) {

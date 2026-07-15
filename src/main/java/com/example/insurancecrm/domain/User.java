@@ -32,4 +32,10 @@ public class User {
     private boolean mustChangePassword;
 
     private LocalDateTime createdAt;
+
+    /** Tokens issued before this instant are rejected — set by an admin force-logout. Null means no forced logout has ever happened. */
+    private LocalDateTime tokensInvalidBefore;
+
+    /** Updated on every authenticated request/login/refresh for AGENT users; used to auto-logout idle agents. Null means no activity recorded yet. */
+    private LocalDateTime lastActivityAt;
 }

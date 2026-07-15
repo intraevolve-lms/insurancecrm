@@ -1,6 +1,7 @@
 package com.example.insurancecrm.controller;
 
 import com.example.insurancecrm.dto.request.CreateUserRequest;
+import com.example.insurancecrm.dto.request.ForceLogoutRequest;
 import com.example.insurancecrm.dto.response.ApiResponse;
 import com.example.insurancecrm.dto.response.UserResponse;
 import com.example.insurancecrm.service.UserService;
@@ -87,5 +88,19 @@ public class UserController {
             @Parameter(description = "MongoDB ID of the user to deactivate", required = true) @PathVariable String id) {
         userService.deactivateUser(id);
         return ResponseEntity.ok(ApiResponse.noContent("User deactivated successfully"));
+    }
+
+    @Operation(summary = "Force logout agents", description = "Immediately ends the active sessions of the given agent accounts — " +
+            "their access and refresh tokens stop working right away, even mid-session, and they'll be redirected to the login " +
+            "page on their next request. Admin accounts in the list are ignored.")
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Selected agents logged out"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "No matching agent accounts found", content = @Content),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Admin role required", content = @Content)
+    })
+    @PostMapping("/force-logout")
+    public ResponseEntity<ApiResponse<Void>> forceLogout(@Valid @RequestBody ForceLogoutRequest request) {
+        userService.forceLogout(request.getUserIds());
+        return ResponseEntity.ok(ApiResponse.noContent("Selected agents have been logged out"));
     }
 }

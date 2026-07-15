@@ -5,7 +5,7 @@ import com.example.insurancecrm.enums.CommunicationOutcome;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Data
 public class CreateCommunicationLogRequest {
@@ -18,7 +18,5 @@ public class CreateCommunicationLogRequest {
 
     private String notes;
 
-    private Integer durationMinutes;
-
-    private LocalDate followUpDate;
+    private LocalDateTime followUpDate;
 }

@@ -161,17 +161,20 @@ HTTPS) aren't covered here.
 
 ### Rolling back a deploy
 
-Every push builds and publishes a `:v<N>` tag (`N` = that repo's own GitHub Actions run number,
-climbing 1, 2, 3, ... — check that repo's Actions tab, or its "Packages" page, to see which `N`
-corresponds to which commit/date). **Backend and frontend version independently** — they're
-separate repos with separate CI runs, so `v12` of the backend and `v12` of the frontend are not
-necessarily from the same date or meant to run together. That's why `docker-compose.yml` has two
-separate tag variables rather than one shared `TAG`. To roll back, set the relevant one(s) to the
-last known-good build number and re-pull:
+Every push builds and publishes a semver tag, `v<major>.<minor>.<patch>`. `major.minor` comes from
+that repo's own `VERSION` file (bump it manually, in a commit, when you want a major or minor
+release); `patch` auto-increments on every push by scanning existing git tags for the current
+`major.minor` prefix, resetting to 0 whenever `VERSION` changes. Check that repo's Tags page, its
+Actions tab, or its GHCR "Packages" page to see which version corresponds to which commit/date.
+**Backend and frontend version independently** — they're separate repos with separate `VERSION`
+files and CI runs, so `v1.2.0` of the backend and `v1.2.0` of the frontend are not necessarily from
+the same date or meant to run together. That's why `docker-compose.yml` has two separate tag
+variables rather than one shared `TAG`. To roll back, set the relevant one(s) to the last
+known-good version and re-pull:
 
 ```bash
 # .env — roll back just the backend, keep frontend on latest
-BACKEND_TAG=v41
+BACKEND_TAG=v1.1.4
 FRONTEND_TAG=latest
 
 docker compose pull

@@ -3,6 +3,7 @@ package com.example.insurancecrm.service;
 import com.example.insurancecrm.domain.User;
 import com.example.insurancecrm.dto.request.CreateUserRequest;
 import com.example.insurancecrm.dto.response.UserResponse;
+import com.example.insurancecrm.enums.Role;
 import com.example.insurancecrm.exception.ApiException;
 import com.example.insurancecrm.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -66,6 +67,21 @@ public class UserService {
         User user = findById(id);
         user.setActive(false);
         userRepository.save(user);
+    }
+
+    /** Immediately invalidates every active/refresh token for the given agents, regardless of remaining expiry. */
+    public void forceLogout(List<String> userIds) {
+        List<User> agents = userRepository.findAllById(userIds).stream()
+                .filter(u -> u.getRole() == Role.AGENT)
+                .toList();
+
+        if (agents.isEmpty()) {
+            throw ApiException.badRequest("No matching agent accounts found to log out");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        agents.forEach(u -> u.setTokensInvalidBefore(now));
+        userRepository.saveAll(agents);
     }
 
     public User findById(String id) {

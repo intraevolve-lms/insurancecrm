@@ -7,7 +7,6 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Document(collection = "communication_logs")
@@ -33,9 +32,7 @@ public class CommunicationLog {
 
     private String notes;
 
-    private Integer durationMinutes; // for calls
-
-    private LocalDate followUpDate;
+    private LocalDateTime followUpDate;
 
     private String loggedBy;      // userId
     private String loggedByName;

@@ -8,21 +8,26 @@ import com.example.insurancecrm.enums.Role;
 import com.example.insurancecrm.repository.LeadRepository;
 import com.example.insurancecrm.repository.UserRepository;
 import com.example.insurancecrm.security.JwtUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** Only DELETE is admin-gated on LeadController; everything else is open to any authenticated
@@ -36,6 +41,8 @@ class LeadControllerAccessIT {
     @Autowired private LeadRepository leadRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JwtUtil jwtUtil;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private MockMvc mockMvc;
     private static final String ADMIN_EMAIL = "lc-admin@test.com";
@@ -101,5 +108,23 @@ class LeadControllerAccessIT {
     void getById_ownAssignedLead_agent_isAllowed() throws Exception {
         mockMvc.perform(get("/api/leads/" + leadId).header("Authorization", "Bearer " + agentToken))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void bulkDelete_agent_isForbidden() throws Exception {
+        mockMvc.perform(delete("/api/leads/bulk-delete").header("Authorization", "Bearer " + agentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("ids", List.of(leadId)))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void bulkDelete_admin_isAllowed_andReportsNotFoundIds() throws Exception {
+        mockMvc.perform(delete("/api/leads/bulk-delete").header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("ids", List.of(leadId, "missing-id")))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.deletedCount").value(1))
+                .andExpect(jsonPath("$.data.notFoundIds[0]").value("missing-id"));
     }
 }

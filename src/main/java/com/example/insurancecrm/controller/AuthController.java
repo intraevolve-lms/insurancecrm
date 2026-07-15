@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -50,13 +51,16 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.ok(authService.refresh(request.getRefreshToken())));
     }
 
-    @Operation(summary = "Change password", description = "Change the current (authenticated) user's own password. " +
+    @Operation(summary = "Change password", description = "Change the current (authenticated) admin's own password. " +
             "Requires the current password. Also clears the 'must change password' flag set on a freshly-seeded " +
-            "admin account, so this is how that first forced password change is completed.")
+            "admin account, so this is how that first forced password change is completed. Agents cannot change " +
+            "their own password this way — an admin must set it for them via PUT /api/users/{id}.")
     @ApiResponses({
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Password changed"),
-        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Current password incorrect, or new password too short", content = @Content)
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Current password incorrect, or new password too short", content = @Content),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Admin role required — agents must ask an admin to change their password", content = @Content)
     })
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/change-password")
     public ResponseEntity<ApiResponse<Void>> changePassword(Authentication authentication,
                                                               @Valid @RequestBody ChangePasswordRequest request) {

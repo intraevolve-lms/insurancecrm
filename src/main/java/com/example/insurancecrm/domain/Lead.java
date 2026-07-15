@@ -10,7 +10,6 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Document(collection = "leads")
@@ -34,6 +33,7 @@ public class Lead {
 
     private LeadSource source;
 
+    @Indexed
     private LeadStatus status;
 
     private PolicyType interestedIn;
@@ -42,13 +42,15 @@ public class Lead {
 
     private BigDecimal estimatedPremium;
 
+    @Indexed
     private String assignedAgentId;
 
-    private LocalDate followUpDate;
+    private LocalDateTime followUpDate;
 
     private LocalDateTime lastContactedAt;
 
     // Most recent outcome logged via Log Activity — drives the dashboard call-outcome funnel
+    @Indexed
     private CommunicationOutcome lastOutcome;
 
     // Set when status = CONVERTED

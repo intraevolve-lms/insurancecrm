@@ -7,6 +7,8 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Date;
 
 @Component
@@ -85,6 +87,15 @@ public class JwtUtil {
     /** True only for a structurally valid, non-expired refresh token. */
     public boolean isRefreshToken(String token) {
         return isTokenOfType(token, TYPE_REFRESH);
+    }
+
+    /** True if the token was issued before the given cutoff (e.g. an admin force-logout) — a null cutoff means no forced logout has happened. */
+    public boolean isIssuedBefore(String token, LocalDateTime cutoff) {
+        if (cutoff == null) {
+            return false;
+        }
+        LocalDateTime issuedAt = LocalDateTime.ofInstant(extractClaims(token).getIssuedAt().toInstant(), ZoneId.systemDefault());
+        return issuedAt.isBefore(cutoff);
     }
 
     private boolean isTokenOfType(String token, String type) {
