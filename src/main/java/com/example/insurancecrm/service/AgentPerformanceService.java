@@ -68,6 +68,7 @@ public class AgentPerformanceService {
                 .switchOff(outcomeCounts.getOrDefault(CommunicationOutcome.SWITCH_OFF, 0L))
                 .hangUp(outcomeCounts.getOrDefault(CommunicationOutcome.HANG_UP, 0L))
                 .nextYear(outcomeCounts.getOrDefault(CommunicationOutcome.NEXT_YEAR, 0L))
+                .languageIssue(outcomeCounts.getOrDefault(CommunicationOutcome.LANGUAGE_ISSUE, 0L))
                 .lastActivityAt(communicationLogRepository.findFirstByLoggedByOrderByLoggedAtDesc(agent.getId())
                         .map(CommunicationLog::getLoggedAt)
                         .orElse(null))

@@ -18,5 +18,6 @@ public class AgentPerformanceResponse {
     private long switchOff;
     private long hangUp;
     private long nextYear;
+    private long languageIssue;
     private LocalDateTime lastActivityAt;
 }

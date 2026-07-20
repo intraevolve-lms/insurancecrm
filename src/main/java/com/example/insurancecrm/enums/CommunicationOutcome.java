@@ -8,5 +8,6 @@ public enum CommunicationOutcome {
     SWITCH_OFF,
     HANG_UP,
     NEXT_YEAR,
-    SALE_CLOSE
+    SALE_CLOSE,
+    LANGUAGE_ISSUE
 }
