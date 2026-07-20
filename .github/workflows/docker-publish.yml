@@ -4,6 +4,14 @@ on:
   push:
     branches: [main, master]
 
+# Version is computed from existing git tags — two runs starting close together (e.g. merging
+# two PRs back-to-back) can both read the tag list before either has pushed, compute the same
+# "next" version, and race to push it. Queuing runs on the same branch avoids that; don't cancel
+# an in-progress run just because another push landed, since it may already be mid-publish.
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -51,4 +59,4 @@ jobs:
       - name: Tag this release in git
         run: |
           git tag ${{ steps.version.outputs.version }}
-          git push origin ${{ steps.version.outputs.version }}
+          git push origin ${{ steps.version.outputs.version }} || echo "::warning::Tag ${{ steps.version.outputs.version }} already exists on remote (likely a leftover race from before the concurrency guard) — the image was still published successfully under this version, so treating this as non-fatal."
