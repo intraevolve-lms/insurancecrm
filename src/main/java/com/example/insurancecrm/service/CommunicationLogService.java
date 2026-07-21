@@ -2,14 +2,12 @@ package com.example.insurancecrm.service;
 
 import com.example.insurancecrm.domain.CommunicationLog;
 import com.example.insurancecrm.domain.Customer;
-import com.example.insurancecrm.domain.Lead;
 import com.example.insurancecrm.domain.User;
 import com.example.insurancecrm.dto.request.CreateCommunicationLogRequest;
 import com.example.insurancecrm.dto.response.CommunicationLogResponse;
 import com.example.insurancecrm.exception.ApiException;
 import com.example.insurancecrm.repository.CommunicationLogRepository;
 import com.example.insurancecrm.repository.CustomerRepository;
-import com.example.insurancecrm.repository.LeadRepository;
 import com.example.insurancecrm.repository.UserRepository;
 import com.example.insurancecrm.security.AccessControl;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +22,6 @@ public class CommunicationLogService {
 
     private final CommunicationLogRepository logRepository;
     private final CustomerRepository customerRepository;
-    private final LeadRepository leadRepository;
     private final UserRepository userRepository;
 
     public List<CommunicationLogResponse> getByCustomer(String customerId, String currentUserId, boolean isAdmin) {
@@ -32,14 +29,6 @@ public class CommunicationLogService {
                 .orElseThrow(() -> ApiException.notFound("Customer not found: " + customerId));
         AccessControl.requireOwnerOrAdmin(customer.getAssignedAgentId(), currentUserId, isAdmin);
         return logRepository.findByCustomerIdOrderByLoggedAtDesc(customerId)
-                .stream().map(this::toResponse).toList();
-    }
-
-    public List<CommunicationLogResponse> getByLead(String leadId, String currentUserId, boolean isAdmin) {
-        Lead lead = leadRepository.findById(leadId)
-                .orElseThrow(() -> ApiException.notFound("Lead not found: " + leadId));
-        AccessControl.requireOwnerOrAdmin(lead.getAssignedAgentId(), currentUserId, isAdmin);
-        return logRepository.findByLeadIdOrderByLoggedAtDesc(leadId)
                 .stream().map(this::toResponse).toList();
     }
 
@@ -73,36 +62,6 @@ public class CommunicationLogService {
         return response;
     }
 
-    public CommunicationLogResponse logForLead(String leadId,
-                                               CreateCommunicationLogRequest req,
-                                               String userId, boolean isAdmin) {
-        Lead lead = leadRepository.findById(leadId)
-                .orElseThrow(() -> ApiException.notFound("Lead not found: " + leadId));
-        AccessControl.requireOwnerOrAdmin(lead.getAssignedAgentId(), userId, isAdmin);
-
-        User agent = userRepository.findById(userId)
-                .orElseThrow(() -> ApiException.notFound("User not found: " + userId));
-
-        CommunicationLog log = CommunicationLog.builder()
-                .leadId(leadId)
-                .channel(req.getChannel())
-                .outcome(req.getOutcome())
-                .notes(req.getNotes())
-                .followUpDate(req.getFollowUpDate())
-                .loggedBy(userId)
-                .loggedByName(agent.getName())
-                .loggedAt(LocalDateTime.now())
-                .build();
-
-        CommunicationLogResponse response = toResponse(logRepository.save(log));
-
-        lead.setLastOutcome(req.getOutcome());
-        lead.setUpdatedAt(LocalDateTime.now());
-        leadRepository.save(lead);
-
-        return response;
-    }
-
     public void delete(String id, String requesterId, boolean isAdmin) {
         CommunicationLog log = logRepository.findById(id)
                 .orElseThrow(() -> ApiException.notFound("Log not found: " + id));
@@ -116,7 +75,6 @@ public class CommunicationLogService {
         return CommunicationLogResponse.builder()
                 .id(l.getId())
                 .customerId(l.getCustomerId())
-                .leadId(l.getLeadId())
                 .channel(l.getChannel())
                 .outcome(l.getOutcome())
                 .notes(l.getNotes())

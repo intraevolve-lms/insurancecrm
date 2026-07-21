@@ -19,12 +19,8 @@ public class CommunicationLog {
     @Id
     private String id;
 
-    // Either customerId or leadId is set, not both
     @Indexed
     private String customerId;
-
-    @Indexed
-    private String leadId;
 
     private CommunicationChannel channel;
 

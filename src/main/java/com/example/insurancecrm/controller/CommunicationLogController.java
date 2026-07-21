@@ -19,7 +19,7 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
-@Tag(name = "Communication Log", description = "Log and retrieve interaction history for customers and leads.")
+@Tag(name = "Communication Log", description = "Log and retrieve interaction history for customers.")
 public class CommunicationLogController {
 
     private final CommunicationLogService logService;
@@ -46,29 +46,6 @@ public class CommunicationLogController {
         String userId = getUserId(auth);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created(logService.logForCustomer(customerId, request, userId, isAdmin(auth))));
-    }
-
-    // ── Lead communications ───────────────────────────────────────
-
-    @Operation(summary = "Get communication history for a lead",
-               description = "Agents can only access their own assigned leads; admins can access any.")
-    @GetMapping("/api/leads/{leadId}/communications")
-    public ResponseEntity<ApiResponse<List<CommunicationLogResponse>>> getByLead(
-            @PathVariable String leadId, Authentication auth) {
-        return ResponseEntity.ok(ApiResponse.ok(logService.getByLead(leadId, getUserId(auth), isAdmin(auth))));
-    }
-
-    @Operation(summary = "Log a communication for a lead",
-               description = "Records an interaction against a lead. Useful for tracking outreach during the sales pipeline. " +
-                       "Agents can only log against their own assigned leads; admins can log against any.")
-    @PostMapping("/api/leads/{leadId}/communications")
-    public ResponseEntity<ApiResponse<CommunicationLogResponse>> logForLead(
-            @PathVariable String leadId,
-            @Valid @RequestBody CreateCommunicationLogRequest request,
-            Authentication auth) {
-        String userId = getUserId(auth);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.created(logService.logForLead(leadId, request, userId, isAdmin(auth))));
     }
 
     // ── Delete ────────────────────────────────────────────────────

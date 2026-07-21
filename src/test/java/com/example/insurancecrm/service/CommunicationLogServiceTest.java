@@ -2,7 +2,6 @@ package com.example.insurancecrm.service;
 
 import com.example.insurancecrm.domain.CommunicationLog;
 import com.example.insurancecrm.domain.Customer;
-import com.example.insurancecrm.domain.Lead;
 import com.example.insurancecrm.domain.User;
 import com.example.insurancecrm.dto.request.CreateCommunicationLogRequest;
 import com.example.insurancecrm.enums.CommunicationChannel;
@@ -10,7 +9,6 @@ import com.example.insurancecrm.enums.CommunicationOutcome;
 import com.example.insurancecrm.exception.ApiException;
 import com.example.insurancecrm.repository.CommunicationLogRepository;
 import com.example.insurancecrm.repository.CustomerRepository;
-import com.example.insurancecrm.repository.LeadRepository;
 import com.example.insurancecrm.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,7 +29,6 @@ class CommunicationLogServiceTest {
 
     @Mock private CommunicationLogRepository logRepository;
     @Mock private CustomerRepository customerRepository;
-    @Mock private LeadRepository leadRepository;
     @Mock private UserRepository userRepository;
 
     @InjectMocks
@@ -74,7 +71,6 @@ class CommunicationLogServiceTest {
         var response = communicationLogService.logForCustomer("cust-1", req(CommunicationOutcome.CALLBACK), "agent-1", false);
 
         assertThat(response.getCustomerId()).isEqualTo("cust-1");
-        assertThat(response.getLeadId()).isNull();
         assertThat(response.getLoggedBy()).isEqualTo("agent-1");
         assertThat(response.getLoggedByName()).isEqualTo("Agent One");
         assertThat(response.getOutcome()).isEqualTo(CommunicationOutcome.CALLBACK);
@@ -116,56 +112,7 @@ class CommunicationLogServiceTest {
         assertThat(response.getLoggedBy()).isEqualTo("admin-1");
     }
 
-    // ── logForLead ────────────────────────────────────────────────────
-
-    @Test
-    void logForLead_updatesLeadLastOutcome() {
-        Lead lead = Lead.builder().id("lead-1").assignedAgentId("agent-1").build();
-        when(leadRepository.findById("lead-1")).thenReturn(Optional.of(lead));
-        when(userRepository.findById("agent-1")).thenReturn(Optional.of(agent));
-        when(logRepository.save(any(CommunicationLog.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(leadRepository.save(any(Lead.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        communicationLogService.logForLead("lead-1", req(CommunicationOutcome.PROSPECT), "agent-1", false);
-
-        ArgumentCaptor<Lead> captor = ArgumentCaptor.forClass(Lead.class);
-        verify(leadRepository).save(captor.capture());
-        assertThat(captor.getValue().getLastOutcome()).isEqualTo(CommunicationOutcome.PROSPECT);
-    }
-
-    @Test
-    void logForLead_missingLead_throwsNotFound() {
-        when(leadRepository.findById("missing")).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> communicationLogService.logForLead("missing", req(CommunicationOutcome.RINGING), "agent-1", false))
-                .isInstanceOf(ApiException.class);
-    }
-
-    @Test
-    void logForLead_nonOwningAgent_isForbidden() {
-        Lead lead = Lead.builder().id("lead-1").assignedAgentId("agent-1").build();
-        when(leadRepository.findById("lead-1")).thenReturn(Optional.of(lead));
-
-        assertThatThrownBy(() -> communicationLogService.logForLead("lead-1", req(CommunicationOutcome.RINGING), "agent-2", false))
-                .isInstanceOf(ApiException.class);
-        verify(logRepository, never()).save(any());
-    }
-
-    @Test
-    void logForLead_admin_canLogAgainstAnyLead() {
-        Lead lead = Lead.builder().id("lead-1").assignedAgentId("agent-1").build();
-        User admin = User.builder().id("admin-1").name("Admin One").build();
-        when(leadRepository.findById("lead-1")).thenReturn(Optional.of(lead));
-        when(userRepository.findById("admin-1")).thenReturn(Optional.of(admin));
-        when(logRepository.save(any(CommunicationLog.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(leadRepository.save(any(Lead.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        var response = communicationLogService.logForLead("lead-1", req(CommunicationOutcome.RINGING), "admin-1", true);
-
-        assertThat(response.getLoggedBy()).isEqualTo("admin-1");
-    }
-
-    // ── getByCustomer / getByLead ─────────────────────────────────────
+    // ── getByCustomer ─────────────────────────────────────────────────
 
     @Test
     void getByCustomer_missingCustomer_throwsNotFound() {
@@ -201,31 +148,6 @@ class CommunicationLogServiceTest {
         when(logRepository.findByCustomerIdOrderByLoggedAtDesc("cust-1")).thenReturn(java.util.List.of());
 
         assertThat(communicationLogService.getByCustomer("cust-1", "admin-1", true)).isEmpty();
-    }
-
-    @Test
-    void getByLead_missingLead_throwsNotFound() {
-        when(leadRepository.findById("missing")).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> communicationLogService.getByLead("missing", "agent-1", false)).isInstanceOf(ApiException.class);
-    }
-
-    @Test
-    void getByLead_nonOwningAgent_isForbidden() {
-        Lead lead = Lead.builder().id("lead-1").assignedAgentId("agent-1").build();
-        when(leadRepository.findById("lead-1")).thenReturn(Optional.of(lead));
-
-        assertThatThrownBy(() -> communicationLogService.getByLead("lead-1", "agent-2", false))
-                .isInstanceOf(ApiException.class);
-    }
-
-    @Test
-    void getByLead_admin_canReadAnyLead() {
-        Lead lead = Lead.builder().id("lead-1").assignedAgentId("agent-1").build();
-        when(leadRepository.findById("lead-1")).thenReturn(Optional.of(lead));
-        when(logRepository.findByLeadIdOrderByLoggedAtDesc("lead-1")).thenReturn(java.util.List.of());
-
-        assertThat(communicationLogService.getByLead("lead-1", "admin-1", true)).isEmpty();
     }
 
     // ── delete ──────────────────────────────────────────────────────
