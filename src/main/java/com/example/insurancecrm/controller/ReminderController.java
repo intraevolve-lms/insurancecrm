@@ -18,14 +18,14 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/reminders")
 @RequiredArgsConstructor
-@Tag(name = "Reminders", description = "Returns all pending follow-ups due today or overdue — from tasks, lead follow-up dates, and communication log follow-up dates.")
+@Tag(name = "Reminders", description = "Returns all pending follow-ups due today or overdue — from communication log follow-up dates.")
 public class ReminderController {
 
     private final ReminderService reminderService;
     private final UserRepository userRepository;
 
     @Operation(summary = "Get all pending reminders",
-               description = "Aggregates overdue and due-today follow-ups across tasks, leads, and communication logs. Sorted by most overdue first.")
+               description = "Aggregates overdue and due-today follow-ups from communication logs. Sorted by most overdue first.")
     @GetMapping
     public ResponseEntity<ApiResponse<List<ReminderResponse>>> getReminders(Authentication auth) {
         String userId = userRepository.findByEmail(auth.getName())

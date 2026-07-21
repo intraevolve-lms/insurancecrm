@@ -9,16 +9,15 @@ import java.time.LocalDateTime;
 @Builder
 public class ReminderResponse {
 
-    public enum ReminderType { LEAD_FOLLOWUP, COMMUNICATION_FOLLOWUP }
+    public enum ReminderType { COMMUNICATION_FOLLOWUP }
 
-    /** What entityId refers to — COMMUNICATION_FOLLOWUP reminders can be logged against either. */
-    public enum EntityKind { CUSTOMER, LEAD }
+    public enum EntityKind { CUSTOMER }
 
     private String id;
     private ReminderType type;
     private String entityId;
     private EntityKind entityKind;
-    private String entityName;   // customer or lead name
+    private String entityName;
     private String description;
     private LocalDateTime dueDate;
     private long overdueDays;    // 0 = due today, >0 = overdue
