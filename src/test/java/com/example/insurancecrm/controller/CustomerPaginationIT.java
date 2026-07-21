@@ -189,4 +189,121 @@ class CustomerPaginationIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.totalElements").value(0));
     }
+
+    // ── /new — the uncontacted work queue ────────────────────────────
+
+    @Test
+    void getNew_agent_onlySeesOwnUncontactedCustomers() throws Exception {
+        // All 25 of the test agent's seeded customers have no lastOutcome yet, so all count as new.
+        mockMvc.perform(get("/api/customers/new").param("page", "0").param("size", "50")
+                        .header("Authorization", "Bearer " + agentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(25));
+    }
+
+    @Test
+    void getNew_admin_seesEveryUncontactedCustomerAcrossAgents() throws Exception {
+        mockMvc.perform(get("/api/customers/new").param("page", "0").param("size", "50")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(28));
+    }
+
+    @Test
+    void getNew_customerDropsOffTheListOnceAnOutcomeIsLogged() throws Exception {
+        Customer contacted = customerRepository.findById(createdCustomerIds.get(0)).orElseThrow();
+        contacted.setLastOutcome(CommunicationOutcome.RINGING);
+        customerRepository.save(contacted);
+
+        mockMvc.perform(get("/api/customers/new").param("page", "0").param("size", "50")
+                        .header("Authorization", "Bearer " + agentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(24))
+                .andExpect(jsonPath("$.data.content[*].id").value(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.hasItem(contacted.getId()))));
+    }
+
+    @Test
+    void getNew_ordersOldestAssignedFirst() throws Exception {
+        Customer older = customerRepository.findById(createdCustomerIds.get(0)).orElseThrow();
+        older.setCreatedAt(LocalDateTime.now().minusDays(5));
+        customerRepository.save(older);
+        Customer newer = customerRepository.findById(createdCustomerIds.get(1)).orElseThrow();
+        newer.setCreatedAt(LocalDateTime.now());
+        customerRepository.save(newer);
+
+        String body = mockMvc.perform(get("/api/customers/new").param("page", "0").param("size", "50")
+                        .header("Authorization", "Bearer " + agentToken))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        List<String> ids = JsonPath.read(body, "$.data.content[*].id");
+        org.assertj.core.api.Assertions.assertThat(ids.indexOf(older.getId())).isLessThan(ids.indexOf(newer.getId()));
+    }
+
+    @Test
+    void getNew_admin_includesCompletelyUnassignedCustomers() throws Exception {
+        // An import that skipped assignment (or hasn't been triaged yet) still needs to surface
+        // to an admin reviewing the uncontacted queue for coverage gaps.
+        String unassignedId = customerRepository.save(Customer.builder()
+                .name("PG Unassigned Customer").phone("92222220000")
+                .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now())
+                .build()).getId();
+        createdCustomerIds.add(unassignedId);
+
+        mockMvc.perform(get("/api/customers/new").param("page", "0").param("size", "50")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(29))
+                .andExpect(jsonPath("$.data.content[*].id").value(org.hamcrest.Matchers.hasItem(unassignedId)));
+    }
+
+    @Test
+    void getNew_agent_doesNotSeeUnassignedCustomers() throws Exception {
+        String unassignedId = customerRepository.save(Customer.builder()
+                .name("PG Unassigned Customer 2").phone("92222220001")
+                .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now())
+                .build()).getId();
+        createdCustomerIds.add(unassignedId);
+
+        mockMvc.perform(get("/api/customers/new").param("page", "0").param("size", "50")
+                        .header("Authorization", "Bearer " + agentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(25))
+                .andExpect(jsonPath("$.data.content[*].id").value(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.hasItem(unassignedId))));
+    }
+
+    @Test
+    void getNew_searchQuery_scopesToMatchingUncontactedCustomers() throws Exception {
+        Customer target = customerRepository.findById(createdCustomerIds.get(0)).orElseThrow();
+        target.setName("Findable New Customer");
+        customerRepository.save(target);
+
+        mockMvc.perform(get("/api/customers/new").param("page", "0").param("size", "50")
+                        .param("q", "Findable")
+                        .header("Authorization", "Bearer " + agentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(target.getId()));
+    }
+
+    @Test
+    void getNew_explicitSortByPremium_overridesTheOldestFirstDefault() throws Exception {
+        Customer low = customerRepository.findById(createdCustomerIds.get(0)).orElseThrow();
+        low.setLastYearPremium(new BigDecimal("100"));
+        customerRepository.save(low);
+        Customer high = customerRepository.findById(createdCustomerIds.get(1)).orElseThrow();
+        high.setLastYearPremium(new BigDecimal("999999"));
+        customerRepository.save(high);
+
+        String body = mockMvc.perform(get("/api/customers/new").param("page", "0").param("size", "50")
+                        .param("sortBy", "premium").param("sortDir", "desc")
+                        .header("Authorization", "Bearer " + agentToken))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        List<String> ids = JsonPath.read(body, "$.data.content[*].id");
+        org.assertj.core.api.Assertions.assertThat(ids.indexOf(high.getId())).isLessThan(ids.indexOf(low.getId()));
+    }
 }

@@ -101,6 +101,18 @@ class CustomerControllerAccessIT {
     }
 
     @Test
+    void getNew_agent_isAllowed() throws Exception {
+        mockMvc.perform(get("/api/customers/new").header("Authorization", "Bearer " + agentToken))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void getNew_noToken_returns401() throws Exception {
+        mockMvc.perform(get("/api/customers/new"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void update_agent_isForbidden() throws Exception {
         mockMvc.perform(put("/api/customers/" + customerId).header("Authorization", "Bearer " + agentToken)
                         .contentType(MediaType.APPLICATION_JSON)

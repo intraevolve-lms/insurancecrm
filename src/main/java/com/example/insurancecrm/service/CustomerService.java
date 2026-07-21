@@ -55,6 +55,26 @@ public class CustomerService {
         return findPaged(criteria, page, size, sortBy, sortDir);
     }
 
+    // "New" = never contacted yet (lastOutcome unset) — a focused work queue so a customer an
+    // admin just imported/assigned doesn't sit invisible in the middle of an agent's full list.
+    // Defaults to oldest-assigned first so nothing goes stale at the back of the queue, but
+    // supports the same sort/search as the main list so this page can mirror its layout exactly.
+    public PagedResponse<CustomerResponse> getNewCustomers(String currentUserId, boolean isAdmin, int page, int size,
+                                                            String query, String sortBy, String sortDir) {
+        List<Criteria> criteria = new ArrayList<>();
+        if (!isAdmin) criteria.add(Criteria.where("assignedAgentId").is(currentUserId));
+        criteria.add(Criteria.where("lastOutcome").is(null));
+        if (query != null && !query.isBlank()) {
+            criteria.add(new Criteria().orOperator(
+                    Criteria.where("name").regex(query, "i"),
+                    Criteria.where("phone").regex(query, "i")));
+        }
+        boolean hasExplicitSort = sortBy != null && !sortBy.isBlank();
+        return findPaged(criteria, page, size,
+                hasExplicitSort ? sortBy : "createdAt",
+                hasExplicitSort ? sortDir : "asc");
+    }
+
     public CustomerResponse getById(String id) {
         return enrichAndMap(List.of(findById(id))).get(0);
     }

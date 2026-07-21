@@ -71,6 +71,25 @@ public class CustomerController {
                 customerService.search(q, getUserId(auth), isAdmin(auth), page, size, sortBy, sortDir, outcome)));
     }
 
+    @Operation(summary = "List new (uncontacted) customers", description = "Customers with no communication outcome logged yet — " +
+            "a focused work queue so a freshly assigned customer doesn't sit invisible in the middle of the full list. " +
+            "Admins see every uncontacted customer; agents see only their own. Oldest-assigned first. " +
+            "A customer drops off this list the moment any activity is logged against them.")
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Uncontacted customer page returned")
+    })
+    @GetMapping("/new")
+    public ResponseEntity<ApiResponse<PagedResponse<CustomerResponse>>> getNew(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @Parameter(description = "Search term matched against name and phone") @RequestParam(required = false) String q,
+            @Parameter(description = "Sort field: 'premium' or 'expiryDate'. Omit for oldest-assigned-first.") @RequestParam(required = false) String sortBy,
+            @Parameter(description = "'asc' or 'desc'") @RequestParam(required = false) String sortDir,
+            Authentication auth) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                customerService.getNewCustomers(getUserId(auth), isAdmin(auth), page, size, q, sortBy, sortDir)));
+    }
+
     @Operation(summary = "Get customer by ID", description = "Returns the full profile including assigned agent details. " +
             "Also records that the current user opened this record, and reports who last opened it before them.")
     @ApiResponses({
