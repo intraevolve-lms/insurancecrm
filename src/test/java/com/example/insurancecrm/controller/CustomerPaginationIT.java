@@ -242,6 +242,39 @@ class CustomerPaginationIT {
     }
 
     @Test
+    void getNew_admin_includesCompletelyUnassignedCustomers() throws Exception {
+        // An import that skipped assignment (or hasn't been triaged yet) still needs to surface
+        // to an admin reviewing the uncontacted queue for coverage gaps.
+        String unassignedId = customerRepository.save(Customer.builder()
+                .name("PG Unassigned Customer").phone("92222220000")
+                .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now())
+                .build()).getId();
+        createdCustomerIds.add(unassignedId);
+
+        mockMvc.perform(get("/api/customers/new").param("page", "0").param("size", "50")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(29))
+                .andExpect(jsonPath("$.data.content[*].id").value(org.hamcrest.Matchers.hasItem(unassignedId)));
+    }
+
+    @Test
+    void getNew_agent_doesNotSeeUnassignedCustomers() throws Exception {
+        String unassignedId = customerRepository.save(Customer.builder()
+                .name("PG Unassigned Customer 2").phone("92222220001")
+                .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now())
+                .build()).getId();
+        createdCustomerIds.add(unassignedId);
+
+        mockMvc.perform(get("/api/customers/new").param("page", "0").param("size", "50")
+                        .header("Authorization", "Bearer " + agentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(25))
+                .andExpect(jsonPath("$.data.content[*].id").value(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.hasItem(unassignedId))));
+    }
+
+    @Test
     void getNew_searchQuery_scopesToMatchingUncontactedCustomers() throws Exception {
         Customer target = customerRepository.findById(createdCustomerIds.get(0)).orElseThrow();
         target.setName("Findable New Customer");
