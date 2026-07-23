@@ -48,9 +48,10 @@ public class CustomerController {
             @Parameter(description = "Sort field: 'premium' or 'expiryDate'. Omit for newest-first.") @RequestParam(required = false) String sortBy,
             @Parameter(description = "'asc' or 'desc', defaults to 'desc'") @RequestParam(required = false) String sortDir,
             @RequestParam(required = false) CommunicationOutcome outcome,
+            @Parameter(description = "Only admins get any meaningful use out of this — agents are already scoped to their own customers.") @RequestParam(required = false) String assignedAgentId,
             Authentication auth) {
         return ResponseEntity.ok(ApiResponse.ok(
-                customerService.getAllCustomers(getUserId(auth), isAdmin(auth), page, size, sortBy, sortDir, outcome)));
+                customerService.getAllCustomers(getUserId(auth), isAdmin(auth), page, size, sortBy, sortDir, outcome, assignedAgentId)));
     }
 
     @Operation(summary = "Search customers", description = "Case-insensitive search across name and phone number. Paginated like the main list.")
@@ -66,9 +67,10 @@ public class CustomerController {
             @RequestParam(required = false) String sortBy,
             @RequestParam(required = false) String sortDir,
             @RequestParam(required = false) CommunicationOutcome outcome,
+            @RequestParam(required = false) String assignedAgentId,
             Authentication auth) {
         return ResponseEntity.ok(ApiResponse.ok(
-                customerService.search(q, getUserId(auth), isAdmin(auth), page, size, sortBy, sortDir, outcome)));
+                customerService.search(q, getUserId(auth), isAdmin(auth), page, size, sortBy, sortDir, outcome, assignedAgentId)));
     }
 
     @Operation(summary = "List new (uncontacted) customers", description = "Customers with no communication outcome logged yet — " +

@@ -53,6 +53,8 @@ class CustomerPaginationIT {
 
     private String adminToken;
     private String agentToken;
+    private String agentId;
+    private String otherAgentId;
     private final List<String> createdCustomerIds = new ArrayList<>();
 
     @BeforeEach
@@ -72,6 +74,8 @@ class CustomerPaginationIT {
 
         adminToken = jwtUtil.generateAccessToken(admin.getEmail(), admin.getId(), "ADMIN");
         agentToken = jwtUtil.generateAccessToken(agent.getEmail(), agent.getId(), "AGENT");
+        agentId = agent.getId();
+        otherAgentId = otherAgent.getId();
 
         // 25 customers assigned to our test agent, for pagination math (2 pages at size 20)
         for (int i = 0; i < 25; i++) {
@@ -169,6 +173,36 @@ class CustomerPaginationIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.totalElements").value(1))
                 .andExpect(jsonPath("$.data.content[0].id").value(withOutcome.getId()));
+    }
+
+    @Test
+    void getAll_admin_assignedAgentIdFilter_returnsOnlyThatAgentsCustomers() throws Exception {
+        mockMvc.perform(get("/api/customers").param("page", "0").param("size", "50")
+                        .param("assignedAgentId", otherAgentId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(3));
+    }
+
+    @Test
+    void getAll_agent_assignedAgentIdFilter_isIgnored_stillOnlySeesOwnCustomers() throws Exception {
+        // An agent trying to peek at another agent's customers via this param must not work —
+        // agents stay hard-scoped to their own assignedAgentId regardless of what's requested.
+        mockMvc.perform(get("/api/customers").param("page", "0").param("size", "50")
+                        .param("assignedAgentId", otherAgentId)
+                        .header("Authorization", "Bearer " + agentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(25));
+    }
+
+    @Test
+    void search_admin_assignedAgentIdFilter_combinesWithQuery() throws Exception {
+        mockMvc.perform(get("/api/customers/search").param("q", "PG")
+                        .param("page", "0").param("size", "50")
+                        .param("assignedAgentId", agentId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(25));
     }
 
     @Test

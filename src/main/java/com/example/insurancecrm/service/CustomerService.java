@@ -48,9 +48,10 @@ public class CustomerService {
 
     public PagedResponse<CustomerResponse> getAllCustomers(String currentUserId, boolean isAdmin,
                                                             int page, int size, String sortBy, String sortDir,
-                                                            CommunicationOutcome outcome) {
+                                                            CommunicationOutcome outcome, String assignedAgentId) {
         List<Criteria> criteria = new ArrayList<>();
         if (!isAdmin) criteria.add(Criteria.where("assignedAgentId").is(currentUserId));
+        else if (assignedAgentId != null && !assignedAgentId.isBlank()) criteria.add(Criteria.where("assignedAgentId").is(assignedAgentId));
         if (outcome != null) criteria.add(Criteria.where("lastOutcome").is(outcome));
         return findPaged(criteria, page, size, sortBy, sortDir);
     }
@@ -198,9 +199,10 @@ public class CustomerService {
 
     public PagedResponse<CustomerResponse> search(String query, String currentUserId, boolean isAdmin,
                                                    int page, int size, String sortBy, String sortDir,
-                                                   CommunicationOutcome outcome) {
+                                                   CommunicationOutcome outcome, String assignedAgentId) {
         List<Criteria> criteria = new ArrayList<>();
         if (!isAdmin) criteria.add(Criteria.where("assignedAgentId").is(currentUserId));
+        else if (assignedAgentId != null && !assignedAgentId.isBlank()) criteria.add(Criteria.where("assignedAgentId").is(assignedAgentId));
         if (outcome != null) criteria.add(Criteria.where("lastOutcome").is(outcome));
         if (query != null && !query.isBlank()) {
             criteria.add(new Criteria().orOperator(
