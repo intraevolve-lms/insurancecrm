@@ -20,7 +20,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/agent-performance")
 @RequiredArgsConstructor
-@Tag(name = "Agent Performance", description = "Per-agent call-outcome funnel stats, sourced from the Log Activity feature on Leads. " +
+@Tag(name = "Agent Performance", description = "Per-agent call-outcome funnel stats, sourced from the Log Activity feature on Customers. " +
         "Admins see every active agent; agents see only their own row.")
 public class AgentPerformanceController {
 
@@ -28,7 +28,7 @@ public class AgentPerformanceController {
     private final UserRepository userRepository;
 
     @Operation(summary = "Get agent performance stats",
-        description = "For each agent: total assigned customers, active-lead counts broken down by last logged call outcome " +
+        description = "For each agent: total assigned customers, counts broken down by last logged call outcome " +
                       "(My Callback, Callback, Prospect, Ringing, Switch Off, Hang Up, Next Year), and the timestamp of their most recent logged activity.")
     @ApiResponses({
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Performance stats returned"),

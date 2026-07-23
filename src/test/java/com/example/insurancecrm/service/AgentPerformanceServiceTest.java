@@ -1,15 +1,12 @@
 package com.example.insurancecrm.service;
 
 import com.example.insurancecrm.domain.Customer;
-import com.example.insurancecrm.domain.Lead;
 import com.example.insurancecrm.domain.User;
 import com.example.insurancecrm.dto.response.AgentPerformanceResponse;
 import com.example.insurancecrm.enums.CommunicationOutcome;
-import com.example.insurancecrm.enums.LeadStatus;
 import com.example.insurancecrm.enums.Role;
 import com.example.insurancecrm.repository.CommunicationLogRepository;
 import com.example.insurancecrm.repository.CustomerRepository;
-import com.example.insurancecrm.repository.LeadRepository;
 import com.example.insurancecrm.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,7 +25,6 @@ class AgentPerformanceServiceTest {
 
     @Mock private UserRepository userRepository;
     @Mock private CustomerRepository customerRepository;
-    @Mock private LeadRepository leadRepository;
     @Mock private CommunicationLogRepository communicationLogRepository;
 
     @InjectMocks
@@ -42,7 +38,6 @@ class AgentPerformanceServiceTest {
     void getPerformance_admin_returnsEveryActiveAgent() {
         when(userRepository.findByRoleAndActiveTrue(Role.AGENT)).thenReturn(List.of(agent));
         when(customerRepository.findByAssignedAgentId(any())).thenReturn(List.of());
-        when(leadRepository.findByAssignedAgentId(any())).thenReturn(List.of());
         when(communicationLogRepository.findFirstByLoggedByOrderByLoggedAtDesc(any())).thenReturn(Optional.empty());
 
         List<AgentPerformanceResponse> result = agentPerformanceService.getPerformance("admin-1", true);
@@ -55,7 +50,6 @@ class AgentPerformanceServiceTest {
     void getPerformance_agent_seesOnlyTheirOwnRow() {
         when(userRepository.findById("agent-1")).thenReturn(Optional.of(agent));
         when(customerRepository.findByAssignedAgentId("agent-1")).thenReturn(List.of());
-        when(leadRepository.findByAssignedAgentId("agent-1")).thenReturn(List.of());
         when(communicationLogRepository.findFirstByLoggedByOrderByLoggedAtDesc("agent-1")).thenReturn(Optional.empty());
 
         List<AgentPerformanceResponse> result = agentPerformanceService.getPerformance("agent-1", false);
@@ -68,41 +62,19 @@ class AgentPerformanceServiceTest {
     // ── outcome pooling — regression test for the "customer outcomes were invisible" bug ──
 
     @Test
-    void buildStats_poolsOutcomesFromBothCustomersAndActiveLeads() {
+    void buildStats_poolsOutcomesFromCustomers() {
         Customer ringingCustomer = Customer.builder().id("c1").assignedAgentId("agent-1")
                 .lastOutcome(CommunicationOutcome.RINGING).build();
         Customer noOutcomeCustomer = Customer.builder().id("c2").assignedAgentId("agent-1").build();
-        Lead callbackLead = Lead.builder().id("l1").assignedAgentId("agent-1")
-                .status(LeadStatus.CONTACTED).lastOutcome(CommunicationOutcome.CALLBACK).build();
 
         when(userRepository.findById("agent-1")).thenReturn(Optional.of(agent));
         when(customerRepository.findByAssignedAgentId("agent-1")).thenReturn(List.of(ringingCustomer, noOutcomeCustomer));
-        when(leadRepository.findByAssignedAgentId("agent-1")).thenReturn(List.of(callbackLead));
         when(communicationLogRepository.findFirstByLoggedByOrderByLoggedAtDesc("agent-1")).thenReturn(Optional.empty());
 
         AgentPerformanceResponse stats = agentPerformanceService.getPerformance("agent-1", false).get(0);
 
         assertThat(stats.getRinging()).isEqualTo(1L);
-        assertThat(stats.getCallback()).isEqualTo(1L);
         assertThat(stats.getTotalCustomers()).isEqualTo(2L);
-    }
-
-    @Test
-    void buildStats_excludesConvertedAndLostLeadsFromOutcomeCounts() {
-        Lead convertedLeadWithRinging = Lead.builder().id("l1").assignedAgentId("agent-1")
-                .status(LeadStatus.CONVERTED).lastOutcome(CommunicationOutcome.RINGING).build();
-        Lead lostLeadWithCallback = Lead.builder().id("l2").assignedAgentId("agent-1")
-                .status(LeadStatus.LOST).lastOutcome(CommunicationOutcome.CALLBACK).build();
-
-        when(userRepository.findById("agent-1")).thenReturn(Optional.of(agent));
-        when(customerRepository.findByAssignedAgentId("agent-1")).thenReturn(List.of());
-        when(leadRepository.findByAssignedAgentId("agent-1")).thenReturn(List.of(convertedLeadWithRinging, lostLeadWithCallback));
-        when(communicationLogRepository.findFirstByLoggedByOrderByLoggedAtDesc("agent-1")).thenReturn(Optional.empty());
-
-        AgentPerformanceResponse stats = agentPerformanceService.getPerformance("agent-1", false).get(0);
-
-        assertThat(stats.getRinging()).isZero();
-        assertThat(stats.getCallback()).isZero();
     }
 
     @Test
@@ -114,7 +86,6 @@ class AgentPerformanceServiceTest {
 
         when(userRepository.findById("agent-1")).thenReturn(Optional.of(agent));
         when(customerRepository.findByAssignedAgentId("agent-1")).thenReturn(List.of(customer));
-        when(leadRepository.findByAssignedAgentId("agent-1")).thenReturn(List.of());
         when(communicationLogRepository.findFirstByLoggedByOrderByLoggedAtDesc("agent-1")).thenReturn(Optional.empty());
 
         AgentPerformanceResponse stats = agentPerformanceService.getPerformance("agent-1", false).get(0);
@@ -130,7 +101,6 @@ class AgentPerformanceServiceTest {
 
         when(userRepository.findById("agent-1")).thenReturn(Optional.of(agent));
         when(customerRepository.findByAssignedAgentId("agent-1")).thenReturn(List.of(customer));
-        when(leadRepository.findByAssignedAgentId("agent-1")).thenReturn(List.of());
         when(communicationLogRepository.findFirstByLoggedByOrderByLoggedAtDesc("agent-1")).thenReturn(Optional.empty());
 
         AgentPerformanceResponse stats = agentPerformanceService.getPerformance("agent-1", false).get(0);

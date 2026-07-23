@@ -12,7 +12,6 @@ import java.time.LocalDateTime;
 public class CommunicationLogResponse {
     private String id;
     private String customerId;
-    private String leadId;
     private CommunicationChannel channel;
     private CommunicationOutcome outcome;
     private String notes;

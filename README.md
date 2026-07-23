@@ -1,6 +1,6 @@
 # InsuredIndex — Backend
 
-Spring Boot 4 / MongoDB backend for InsuredIndex (insuredindex.inurek.com), an insurance agency CRM: customers, leads, communication logging, agent performance, and renewal reminders. Role-based access for `ADMIN` and `AGENT` users, secured with JWT.
+Spring Boot 4 / MongoDB backend for InsuredIndex (insuredindex.inurek.com), an insurance agency CRM: customers, communication logging, agent performance, and renewal reminders. Role-based access for `ADMIN` and `AGENT` users, secured with JWT.
 
 ## Prerequisites
 

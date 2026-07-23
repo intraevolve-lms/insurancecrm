@@ -10,15 +10,9 @@ public interface CommunicationLogRepository extends MongoRepository<Communicatio
 
     List<CommunicationLog> findByCustomerIdOrderByLoggedAtDesc(String customerId);
 
-    List<CommunicationLog> findByLeadIdOrderByLoggedAtDesc(String leadId);
-
     Optional<CommunicationLog> findFirstByLoggedByOrderByLoggedAtDesc(String loggedBy);
 
     void deleteByCustomerId(String customerId);
 
     void deleteByCustomerIdIn(List<String> customerIds);
-
-    void deleteByLeadId(String leadId);
-
-    void deleteByLeadIdIn(List<String> leadIds);
 }
