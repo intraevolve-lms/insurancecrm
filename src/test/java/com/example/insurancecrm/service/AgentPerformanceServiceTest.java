@@ -95,6 +95,22 @@ class AgentPerformanceServiceTest {
     }
 
     @Test
+    void buildStats_countsCustomersWithNoOutcomeAsNewLeads() {
+        Customer newLead = Customer.builder().id("c1").assignedAgentId("agent-1").build();
+        Customer contacted = Customer.builder().id("c2").assignedAgentId("agent-1")
+                .lastOutcome(CommunicationOutcome.RINGING).build();
+
+        when(userRepository.findById("agent-1")).thenReturn(Optional.of(agent));
+        when(customerRepository.findByAssignedAgentId("agent-1")).thenReturn(List.of(newLead, contacted));
+        when(communicationLogRepository.findFirstByLoggedByOrderByLoggedAtDesc("agent-1")).thenReturn(Optional.empty());
+
+        AgentPerformanceResponse stats = agentPerformanceService.getPerformance("agent-1", false).get(0);
+
+        assertThat(stats.getNewLeads()).isEqualTo(1L);
+        assertThat(stats.getTotalCustomers()).isEqualTo(2L);
+    }
+
+    @Test
     void buildStats_countsLanguageIssueOutcome() {
         Customer customer = Customer.builder().id("c1").assignedAgentId("agent-1")
                 .lastOutcome(CommunicationOutcome.LANGUAGE_ISSUE).build();

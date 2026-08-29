@@ -28,7 +28,8 @@ public class AgentPerformanceController {
     private final UserRepository userRepository;
 
     @Operation(summary = "Get agent performance stats",
-        description = "For each agent: total assigned customers, counts broken down by last logged call outcome " +
+        description = "For each agent: total assigned customers, how many are still new leads (no outcome logged yet), " +
+                      "counts broken down by last logged call outcome " +
                       "(My Callback, Callback, Prospect, Ringing, Switch Off, Hang Up, Next Year), and the timestamp of their most recent logged activity.")
     @ApiResponses({
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Performance stats returned"),

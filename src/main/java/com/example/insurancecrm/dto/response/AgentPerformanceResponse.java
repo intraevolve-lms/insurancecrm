@@ -11,6 +11,7 @@ public class AgentPerformanceResponse {
     private String agentId;
     private String agentName;
     private long totalCustomers;
+    private long newLeads;
     private long myCallback;
     private long callback;
     private long prospect;
