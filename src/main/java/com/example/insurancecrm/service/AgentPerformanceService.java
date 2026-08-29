@@ -41,10 +41,15 @@ public class AgentPerformanceService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.groupingBy(o -> o, Collectors.counting()));
 
+        // Mirrors the "New Lead" queue's definition (see CustomerService.getNewCustomers):
+        // never contacted yet, i.e. no outcome logged.
+        long newLeads = customers.stream().filter(c -> c.getLastOutcome() == null).count();
+
         return AgentPerformanceResponse.builder()
                 .agentId(agent.getId())
                 .agentName(agent.getName())
                 .totalCustomers((long) customers.size())
+                .newLeads(newLeads)
                 .myCallback(outcomeCounts.getOrDefault(CommunicationOutcome.MY_CALLBACK, 0L))
                 .callback(outcomeCounts.getOrDefault(CommunicationOutcome.CALLBACK, 0L))
                 .prospect(outcomeCounts.getOrDefault(CommunicationOutcome.PROSPECT, 0L))

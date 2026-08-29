@@ -5,6 +5,7 @@ import com.example.insurancecrm.enums.CommunicationOutcome;
 import lombok.Builder;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -16,6 +17,13 @@ public class CommunicationLogResponse {
     private CommunicationOutcome outcome;
     private String notes;
     private LocalDateTime followUpDate;
+    private BigDecimal premium;
+    private String companyName;
+    private String planName;
+    private String scheme;
+    private String city;
+    private String portabilityOrFresh;
+    private String tenure;
     private String loggedBy;
     private String loggedByName;
     private LocalDateTime loggedAt;

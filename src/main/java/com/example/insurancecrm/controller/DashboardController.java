@@ -25,8 +25,9 @@ public class DashboardController {
     private final UserRepository userRepository;
 
     @Operation(summary = "Get dashboard summary",
-        description = "Returns snapshot counts: totalCustomers, totalPolicies, expiring in 30/15/7/0 days, expired, and pendingTasks. " +
-                      "Admins see counts across everyone; agents see counts scoped to their own assigned customers. " +
+        description = "Returns snapshot counts: totalCustomers, totalPolicies, expiring in 30/15/7/0 days, expired, pendingTasks, " +
+                      "and totalSaleClosedThisMonth (sum of Premium across every Sale Close activity logged this calendar month). " +
+                      "Admins see counts across everyone; agents see counts scoped to their own assigned customers / own logged activity. " +
                       "Use the Renewals endpoint to drill into the individual policies behind each expiry count.")
     @ApiResponses({
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Summary returned"),

@@ -37,7 +37,8 @@ public class CommunicationLogController {
 
     @Operation(summary = "Log a communication for a customer",
                description = "Records an interaction (call, WhatsApp, email, meeting, site visit) against a customer. " +
-                       "Agents can only log against their own assigned customers; admins can log against any.")
+                       "Agents can only log against their own assigned customers; admins can log against any. " +
+                       "When outcome is SALE_CLOSE, premium, companyName, planName, scheme, city, portabilityOrFresh, and tenure are all required.")
     @PostMapping("/api/customers/{customerId}/communications")
     public ResponseEntity<ApiResponse<CommunicationLogResponse>> logForCustomer(
             @PathVariable String customerId,

@@ -17,6 +17,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -110,6 +111,78 @@ class CommunicationLogServiceTest {
         var response = communicationLogService.logForCustomer("cust-1", req(CommunicationOutcome.RINGING), "admin-1", true);
 
         assertThat(response.getLoggedBy()).isEqualTo("admin-1");
+    }
+
+    // ── Sale Close required fields ─────────────────────────────────────
+
+    private CreateCommunicationLogRequest saleCloseReq() {
+        CreateCommunicationLogRequest r = req(CommunicationOutcome.SALE_CLOSE);
+        r.setPremium(new BigDecimal("25000"));
+        r.setCompanyName("Acme Insurance");
+        r.setPlanName("Gold Plan");
+        r.setScheme("Family Floater");
+        r.setCity("Mumbai");
+        r.setPortabilityOrFresh("Fresh");
+        r.setTenure("1 Year");
+        return r;
+    }
+
+    @Test
+    void logForCustomer_saleClose_withAllFieldsPresent_succeeds() {
+        Customer customer = Customer.builder().id("cust-1").assignedAgentId("agent-1").build();
+        when(customerRepository.findById("cust-1")).thenReturn(Optional.of(customer));
+        when(userRepository.findById("agent-1")).thenReturn(Optional.of(agent));
+        when(logRepository.save(any(CommunicationLog.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var response = communicationLogService.logForCustomer("cust-1", saleCloseReq(), "agent-1", false);
+
+        assertThat(response.getPremium()).isEqualByComparingTo("25000");
+        assertThat(response.getCompanyName()).isEqualTo("Acme Insurance");
+        assertThat(response.getPlanName()).isEqualTo("Gold Plan");
+        assertThat(response.getScheme()).isEqualTo("Family Floater");
+        assertThat(response.getCity()).isEqualTo("Mumbai");
+        assertThat(response.getPortabilityOrFresh()).isEqualTo("Fresh");
+        assertThat(response.getTenure()).isEqualTo("1 Year");
+    }
+
+    @Test
+    void logForCustomer_saleClose_missingPremium_isRejected() {
+        Customer customer = Customer.builder().id("cust-1").assignedAgentId("agent-1").build();
+        when(customerRepository.findById("cust-1")).thenReturn(Optional.of(customer));
+
+        CreateCommunicationLogRequest r = saleCloseReq();
+        r.setPremium(null);
+
+        assertThatThrownBy(() -> communicationLogService.logForCustomer("cust-1", r, "agent-1", false))
+                .isInstanceOf(ApiException.class);
+        verify(logRepository, never()).save(any());
+    }
+
+    @Test
+    void logForCustomer_saleClose_blankCompanyName_isRejected() {
+        Customer customer = Customer.builder().id("cust-1").assignedAgentId("agent-1").build();
+        when(customerRepository.findById("cust-1")).thenReturn(Optional.of(customer));
+
+        CreateCommunicationLogRequest r = saleCloseReq();
+        r.setCompanyName("  ");
+
+        assertThatThrownBy(() -> communicationLogService.logForCustomer("cust-1", r, "agent-1", false))
+                .isInstanceOf(ApiException.class);
+        verify(logRepository, never()).save(any());
+    }
+
+    @Test
+    void logForCustomer_nonSaleCloseOutcome_doesNotRequireSaleFields() {
+        Customer customer = Customer.builder().id("cust-1").assignedAgentId("agent-1").build();
+        when(customerRepository.findById("cust-1")).thenReturn(Optional.of(customer));
+        when(userRepository.findById("agent-1")).thenReturn(Optional.of(agent));
+        when(logRepository.save(any(CommunicationLog.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var response = communicationLogService.logForCustomer("cust-1", req(CommunicationOutcome.RINGING), "agent-1", false);
+
+        assertThat(response.getPremium()).isNull();
     }
 
     // ── getByCustomer ─────────────────────────────────────────────────
