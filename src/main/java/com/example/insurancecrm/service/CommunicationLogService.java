@@ -5,6 +5,7 @@ import com.example.insurancecrm.domain.Customer;
 import com.example.insurancecrm.domain.User;
 import com.example.insurancecrm.dto.request.CreateCommunicationLogRequest;
 import com.example.insurancecrm.dto.response.CommunicationLogResponse;
+import com.example.insurancecrm.enums.CommunicationOutcome;
 import com.example.insurancecrm.exception.ApiException;
 import com.example.insurancecrm.repository.CommunicationLogRepository;
 import com.example.insurancecrm.repository.CustomerRepository;
@@ -39,6 +40,10 @@ public class CommunicationLogService {
                 .orElseThrow(() -> ApiException.notFound("Customer not found: " + customerId));
         AccessControl.requireOwnerOrAdmin(customer.getAssignedAgentId(), userId, isAdmin);
 
+        if (req.getOutcome() == CommunicationOutcome.SALE_CLOSE) {
+            validateSaleCloseFields(req);
+        }
+
         User agent = userRepository.findById(userId)
                 .orElseThrow(() -> ApiException.notFound("User not found: " + userId));
 
@@ -48,6 +53,13 @@ public class CommunicationLogService {
                 .outcome(req.getOutcome())
                 .notes(req.getNotes())
                 .followUpDate(req.getFollowUpDate())
+                .premium(req.getPremium())
+                .companyName(req.getCompanyName())
+                .planName(req.getPlanName())
+                .scheme(req.getScheme())
+                .city(req.getCity())
+                .portabilityOrFresh(req.getPortabilityOrFresh())
+                .tenure(req.getTenure())
                 .loggedBy(userId)
                 .loggedByName(agent.getName())
                 .loggedAt(LocalDateTime.now())
@@ -71,6 +83,23 @@ public class CommunicationLogService {
         logRepository.delete(log);
     }
 
+    private void validateSaleCloseFields(CreateCommunicationLogRequest req) {
+        if (req.getPremium() == null
+                || isBlank(req.getCompanyName())
+                || isBlank(req.getPlanName())
+                || isBlank(req.getScheme())
+                || isBlank(req.getCity())
+                || isBlank(req.getPortabilityOrFresh())
+                || isBlank(req.getTenure())) {
+            throw ApiException.badRequest(
+                    "Premium, Company Name, Plan Name, Scheme, City, Portability/Fresh, and Tenure are all required to close a sale");
+        }
+    }
+
+    private boolean isBlank(String s) {
+        return s == null || s.isBlank();
+    }
+
     private CommunicationLogResponse toResponse(CommunicationLog l) {
         return CommunicationLogResponse.builder()
                 .id(l.getId())
@@ -79,6 +108,13 @@ public class CommunicationLogService {
                 .outcome(l.getOutcome())
                 .notes(l.getNotes())
                 .followUpDate(l.getFollowUpDate())
+                .premium(l.getPremium())
+                .companyName(l.getCompanyName())
+                .planName(l.getPlanName())
+                .scheme(l.getScheme())
+                .city(l.getCity())
+                .portabilityOrFresh(l.getPortabilityOrFresh())
+                .tenure(l.getTenure())
                 .loggedBy(l.getLoggedBy())
                 .loggedByName(l.getLoggedByName())
                 .loggedAt(l.getLoggedAt())
