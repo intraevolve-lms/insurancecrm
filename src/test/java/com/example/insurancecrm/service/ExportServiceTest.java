@@ -39,9 +39,9 @@ class ExportServiceTest {
     @Test
     void exportCustomers_noFilter_exportsEveryCustomer() throws Exception {
         when(customerRepository.findAll()).thenReturn(List.of(c1, c2));
-        when(userRepository.findAll()).thenReturn(List.of());
+        when(userRepository.findByDeletedAtIsNull()).thenReturn(List.of());
 
-        byte[] bytes = exportService.exportCustomers(null);
+        byte[] bytes = exportService.exportCustomers(null, false);
 
         assertThat(rowCount(bytes)).isEqualTo(2);
         verify(customerRepository, never()).findByAssignedAgentId(any());
@@ -50,21 +50,48 @@ class ExportServiceTest {
     @Test
     void exportCustomers_withAgentFilter_exportsOnlyThatAgentsCustomers() throws Exception {
         when(customerRepository.findByAssignedAgentId("agent-1")).thenReturn(List.of(c1));
-        when(userRepository.findAll()).thenReturn(List.of());
+        when(userRepository.findByDeletedAtIsNull()).thenReturn(List.of());
 
-        byte[] bytes = exportService.exportCustomers("agent-1");
+        byte[] bytes = exportService.exportCustomers("agent-1", false);
 
         assertThat(rowCount(bytes)).isEqualTo(1);
         assertThat(firstDataRow(bytes)[1]).isEqualTo("Customer One");
     }
 
     @Test
+    void exportCustomers_unassignedFilter_includesNeverAssignedAndOrphanedCustomers_excludesResolvableOnes() throws Exception {
+        Customer neverAssigned = Customer.builder().id("c3").name("Never Assigned").phone("9333333333").build();
+        Customer orphaned = Customer.builder().id("c4").name("Orphaned Customer").phone("9444444444")
+                .assignedAgentId("deleted-agent-id").build();
+        User agent1 = User.builder().id("agent-1").name("Agent One").role(Role.AGENT).build();
+        when(customerRepository.findAll()).thenReturn(List.of(c1, neverAssigned, orphaned));
+        when(userRepository.findByDeletedAtIsNull()).thenReturn(List.of(agent1));
+
+        byte[] bytes = exportService.exportCustomers(null, true);
+
+        assertThat(rowCount(bytes)).isEqualTo(2);
+        verify(customerRepository, never()).findByAssignedAgentId(any());
+    }
+
+    @Test
+    void exportCustomers_unassignedFilter_takesPrecedenceOverAgentIdFilter() throws Exception {
+        Customer neverAssigned = Customer.builder().id("c3").name("Never Assigned").phone("9333333333").build();
+        when(customerRepository.findAll()).thenReturn(List.of(c1, neverAssigned));
+        when(userRepository.findByDeletedAtIsNull()).thenReturn(List.of());
+
+        byte[] bytes = exportService.exportCustomers("agent-1", true);
+
+        assertThat(rowCount(bytes)).isEqualTo(2);
+        verify(customerRepository, never()).findByAssignedAgentId(any());
+    }
+
+    @Test
     void exportCustomers_resolvesAssignedAgentNameInOutput() throws Exception {
         User agent = User.builder().id("agent-1").name("Agent One").role(Role.AGENT).build();
         when(customerRepository.findAll()).thenReturn(List.of(c1));
-        when(userRepository.findAll()).thenReturn(List.of(agent));
+        when(userRepository.findByDeletedAtIsNull()).thenReturn(List.of(agent));
 
-        byte[] bytes = exportService.exportCustomers(null);
+        byte[] bytes = exportService.exportCustomers(null, false);
 
         assertThat(firstDataRow(bytes)[10]).isEqualTo("Agent One");
     }
@@ -73,9 +100,23 @@ class ExportServiceTest {
     void exportCustomers_unassignedCustomer_showsEmDash() throws Exception {
         Customer unassigned = Customer.builder().id("c3").name("Unassigned Cust").phone("9333333333").build();
         when(customerRepository.findAll()).thenReturn(List.of(unassigned));
-        when(userRepository.findAll()).thenReturn(List.of());
+        when(userRepository.findByDeletedAtIsNull()).thenReturn(List.of());
 
-        byte[] bytes = exportService.exportCustomers(null);
+        byte[] bytes = exportService.exportCustomers(null, false);
+
+        assertThat(firstDataRow(bytes)[10]).isEqualTo("—");
+    }
+
+    @Test
+    void exportCustomers_softDeletedAgent_showsEmDashNotTheirName() throws Exception {
+        // findByDeletedAtIsNull already excludes them, so a customer still pointing at a
+        // soft-deleted agent's id must export as unassigned, same as a never-assigned customer.
+        Customer stillPointingAtDeletedAgent = Customer.builder().id("c5").name("Ghost Assignment").phone("9555555555")
+                .assignedAgentId("deleted-agent-id").build();
+        when(customerRepository.findAll()).thenReturn(List.of(stillPointingAtDeletedAgent));
+        when(userRepository.findByDeletedAtIsNull()).thenReturn(List.of());
+
+        byte[] bytes = exportService.exportCustomers(null, false);
 
         assertThat(firstDataRow(bytes)[10]).isEqualTo("—");
     }
@@ -83,9 +124,9 @@ class ExportServiceTest {
     @Test
     void exportCustomers_writesExpectedHeaderRow() throws Exception {
         when(customerRepository.findAll()).thenReturn(List.of());
-        when(userRepository.findAll()).thenReturn(List.of());
+        when(userRepository.findByDeletedAtIsNull()).thenReturn(List.of());
 
-        byte[] bytes = exportService.exportCustomers(null);
+        byte[] bytes = exportService.exportCustomers(null, false);
 
         try (Workbook wb = WorkbookFactory.create(new ByteArrayInputStream(bytes))) {
             Sheet sheet = wb.getSheetAt(0);

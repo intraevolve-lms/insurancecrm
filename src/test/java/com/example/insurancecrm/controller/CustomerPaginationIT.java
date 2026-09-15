@@ -196,6 +196,58 @@ class CustomerPaginationIT {
     }
 
     @Test
+    void getAll_admin_unassignedFilter_returnsOnlyCustomersWithNoResolvableAgent() throws Exception {
+        String neverAssignedId = customerRepository.save(Customer.builder()
+                .name("PG Never Assigned").phone("93333330000")
+                .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now())
+                .build()).getId();
+        createdCustomerIds.add(neverAssignedId);
+
+        String orphanedId = customerRepository.save(Customer.builder()
+                .name("PG Orphaned Customer").phone("93333330001")
+                .assignedAgentId("deleted-agent-id-does-not-exist")
+                .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now())
+                .build()).getId();
+        createdCustomerIds.add(orphanedId);
+
+        mockMvc.perform(get("/api/customers").param("page", "0").param("size", "50")
+                        .param("unassigned", "true")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(2))
+                .andExpect(jsonPath("$.data.content[*].id").value(
+                        org.hamcrest.Matchers.containsInAnyOrder(neverAssignedId, orphanedId)));
+    }
+
+    @Test
+    void getAll_agent_unassignedFilterIsIgnored_stillOnlySeesOwnCustomers() throws Exception {
+        // Same principle as assignedAgentId — an agent can't use this to peek outside their own
+        // scope; they stay hard-scoped to their own assignedAgentId regardless of what's requested.
+        mockMvc.perform(get("/api/customers").param("page", "0").param("size", "50")
+                        .param("unassigned", "true")
+                        .header("Authorization", "Bearer " + agentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(25));
+    }
+
+    @Test
+    void getAll_admin_unassignedFilter_takesPrecedenceOverAssignedAgentIdFilter() throws Exception {
+        String neverAssignedId = customerRepository.save(Customer.builder()
+                .name("PG Never Assigned Two").phone("93333330002")
+                .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now())
+                .build()).getId();
+        createdCustomerIds.add(neverAssignedId);
+
+        mockMvc.perform(get("/api/customers").param("page", "0").param("size", "50")
+                        .param("unassigned", "true")
+                        .param("assignedAgentId", agentId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(neverAssignedId));
+    }
+
+    @Test
     void search_admin_assignedAgentIdFilter_combinesWithQuery() throws Exception {
         mockMvc.perform(get("/api/customers/search").param("q", "PG")
                         .param("page", "0").param("size", "50")

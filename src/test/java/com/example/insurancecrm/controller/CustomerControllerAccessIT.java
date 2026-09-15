@@ -167,6 +167,28 @@ class CustomerControllerAccessIT {
     }
 
     @Test
+    void reassignAll_agent_isForbidden() throws Exception {
+        User agent = userRepository.findByEmail(AGENT_EMAIL).orElseThrow();
+        mockMvc.perform(patch("/api/customers/reassign-all").header("Authorization", "Bearer " + agentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                Map.of("fromAgentId", "some-agent", "toAgentId", agent.getId()))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void reassignAll_admin_isAllowed() throws Exception {
+        User agent = userRepository.findByEmail(AGENT_EMAIL).orElseThrow();
+        mockMvc.perform(patch("/api/customers/reassign-all").header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                Map.of("fromAgentId", "some-departed-agent", "toAgentId", agent.getId()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.toAgentId").value(agent.getId()))
+                .andExpect(jsonPath("$.data.reassignedCount").value(0));
+    }
+
+    @Test
     void bulkDelete_agent_isForbidden() throws Exception {
         mockMvc.perform(delete("/api/customers/bulk-delete").header("Authorization", "Bearer " + agentToken)
                         .contentType(MediaType.APPLICATION_JSON)

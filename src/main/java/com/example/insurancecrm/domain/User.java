@@ -38,4 +38,11 @@ public class User {
 
     /** Updated on every authenticated request/login/refresh for AGENT users; used to auto-logout idle agents. Null means no activity recorded yet. */
     private LocalDateTime lastActivityAt;
+
+    /** Soft-delete marker — null means not deleted. The document is never physically removed, so
+     *  historical records (audit logs, communication logs, and anything that captured this user's
+     *  name at the time) stay fully attributable. Deleted users are excluded from every
+     *  operational lookup (user list, agent dropdowns, name resolution) but the row itself, and
+     *  the email's uniqueness claim on it, are permanent. */
+    private LocalDateTime deletedAt;
 }

@@ -8,6 +8,7 @@ import com.example.insurancecrm.dto.response.BulkAssignResponse;
 import com.example.insurancecrm.dto.response.BulkDeleteResponse;
 import com.example.insurancecrm.dto.response.CustomerResponse;
 import com.example.insurancecrm.dto.response.PagedResponse;
+import com.example.insurancecrm.dto.response.ReassignAllResponse;
 import com.example.insurancecrm.enums.CommunicationOutcome;
 import com.example.insurancecrm.exception.ApiException;
 import com.example.insurancecrm.repository.AuditLogRepository;
@@ -48,9 +49,11 @@ public class CustomerService {
 
     public PagedResponse<CustomerResponse> getAllCustomers(String currentUserId, boolean isAdmin,
                                                             int page, int size, String sortBy, String sortDir,
-                                                            CommunicationOutcome outcome, String assignedAgentId) {
+                                                            CommunicationOutcome outcome, String assignedAgentId,
+                                                            boolean unassigned) {
         List<Criteria> criteria = new ArrayList<>();
         if (!isAdmin) criteria.add(Criteria.where("assignedAgentId").is(currentUserId));
+        else if (unassigned) criteria.add(unassignedCriteria());
         else if (assignedAgentId != null && !assignedAgentId.isBlank()) criteria.add(Criteria.where("assignedAgentId").is(assignedAgentId));
         if (outcome != null) criteria.add(Criteria.where("lastOutcome").is(outcome));
         return findPaged(criteria, page, size, sortBy, sortDir);
@@ -149,7 +152,7 @@ public class CustomerService {
 
     public CustomerResponse assignAgent(String customerId, String agentId) {
         Customer customer = findById(customerId);
-        userRepository.findById(agentId)
+        userRepository.findByIdAndDeletedAtIsNull(agentId)
                 .orElseThrow(() -> ApiException.notFound("Agent not found: " + agentId));
         customer.setAssignedAgentId(agentId);
         customer.setUpdatedAt(LocalDateTime.now());
@@ -157,7 +160,7 @@ public class CustomerService {
     }
 
     public BulkAssignResponse bulkAssignAgent(List<String> customerIds, String agentId) {
-        User agent = userRepository.findById(agentId)
+        User agent = userRepository.findByIdAndDeletedAtIsNull(agentId)
                 .orElseThrow(() -> ApiException.notFound("Agent not found: " + agentId));
 
         List<String> distinctIds = customerIds.stream().distinct().toList();
@@ -180,6 +183,28 @@ public class CustomerService {
                 .build();
     }
 
+    // Used to hand off an offboarded agent's customers before/after their account is deactivated
+    // or permanently deleted — see UserService. Deliberately does not require fromAgentId to
+    // resolve to an existing user: it must still work after the account is already gone, which is
+    // exactly when this is needed most (a customer's assignedAgentId is otherwise left as a
+    // dangling reference to nobody).
+    public ReassignAllResponse reassignAllCustomers(String fromAgentId, String toAgentId) {
+        User toAgent = userRepository.findByIdAndDeletedAtIsNull(toAgentId)
+                .orElseThrow(() -> ApiException.notFound("Agent not found: " + toAgentId));
+
+        List<Customer> found = customerRepository.findByAssignedAgentId(fromAgentId);
+        LocalDateTime now = LocalDateTime.now();
+        found.forEach(c -> { c.setAssignedAgentId(toAgentId); c.setUpdatedAt(now); });
+        customerRepository.saveAll(found);
+
+        return ReassignAllResponse.builder()
+                .fromAgentId(fromAgentId)
+                .toAgentId(toAgentId)
+                .toAgentName(toAgent.getName())
+                .reassignedCount(found.size())
+                .build();
+    }
+
     public BulkDeleteResponse bulkDelete(List<String> ids) {
         List<String> distinctIds = ids.stream().distinct().toList();
         List<Customer> found = customerRepository.findAllById(distinctIds);
@@ -199,9 +224,11 @@ public class CustomerService {
 
     public PagedResponse<CustomerResponse> search(String query, String currentUserId, boolean isAdmin,
                                                    int page, int size, String sortBy, String sortDir,
-                                                   CommunicationOutcome outcome, String assignedAgentId) {
+                                                   CommunicationOutcome outcome, String assignedAgentId,
+                                                   boolean unassigned) {
         List<Criteria> criteria = new ArrayList<>();
         if (!isAdmin) criteria.add(Criteria.where("assignedAgentId").is(currentUserId));
+        else if (unassigned) criteria.add(unassignedCriteria());
         else if (assignedAgentId != null && !assignedAgentId.isBlank()) criteria.add(Criteria.where("assignedAgentId").is(assignedAgentId));
         if (outcome != null) criteria.add(Criteria.where("lastOutcome").is(outcome));
         if (query != null && !query.isBlank()) {
@@ -210,6 +237,15 @@ public class CustomerService {
                     Criteria.where("phone").regex(query, "i")));
         }
         return findPaged(criteria, page, size, sortBy, sortDir);
+    }
+
+    // Matches enrichAndMap's own definition of "unassigned": either assignedAgentId is null, or
+    // it's a dangling reference to a user that no longer resolves (soft-deleted, same as if the
+    // account didn't exist) — deliberately not scoped to active users, since a customer assigned
+    // to a merely deactivated agent still has a real, resolvable owner and should not show up here.
+    private Criteria unassignedCriteria() {
+        List<String> validAgentIds = userRepository.findByDeletedAtIsNull().stream().map(User::getId).toList();
+        return Criteria.where("assignedAgentId").nin(validAgentIds);
     }
 
     private PagedResponse<CustomerResponse> findPaged(List<Criteria> criteria, int page, int size,
@@ -265,7 +301,11 @@ public class CustomerService {
                 .map(Customer::getAssignedAgentId)
                 .distinct().toList();
 
+        // Soft-deleted agents are excluded here on purpose — their name must not resolve, so a
+        // customer still assigned to them shows as Unassigned (see unassignedCriteria) rather
+        // than silently displaying a deleted account's name.
         Map<String, String> agentNames = userRepository.findAllById(agentIds).stream()
+                .filter(u -> u.getDeletedAt() == null)
                 .collect(Collectors.toMap(User::getId, User::getName));
 
         return customers.stream().map(c -> CustomerResponse.builder()
