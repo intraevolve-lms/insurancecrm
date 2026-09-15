@@ -51,9 +51,10 @@ public class CustomerController {
             @Parameter(description = "'asc' or 'desc', defaults to 'desc'") @RequestParam(required = false) String sortDir,
             @RequestParam(required = false) CommunicationOutcome outcome,
             @Parameter(description = "Only admins get any meaningful use out of this — agents are already scoped to their own customers.") @RequestParam(required = false) String assignedAgentId,
+            @Parameter(description = "Admin-only. When true, returns only customers with no resolvable agent — never assigned, or assigned to an agent whose account has since been permanently deleted. Takes precedence over assignedAgentId.") @RequestParam(defaultValue = "false") boolean unassigned,
             Authentication auth) {
         return ResponseEntity.ok(ApiResponse.ok(
-                customerService.getAllCustomers(getUserId(auth), isAdmin(auth), page, size, sortBy, sortDir, outcome, assignedAgentId)));
+                customerService.getAllCustomers(getUserId(auth), isAdmin(auth), page, size, sortBy, sortDir, outcome, assignedAgentId, unassigned)));
     }
 
     @Operation(summary = "Search customers", description = "Case-insensitive search across name and phone number. Paginated like the main list.")
@@ -70,9 +71,10 @@ public class CustomerController {
             @RequestParam(required = false) String sortDir,
             @RequestParam(required = false) CommunicationOutcome outcome,
             @RequestParam(required = false) String assignedAgentId,
+            @Parameter(description = "Admin-only. When true, returns only customers with no resolvable agent. Takes precedence over assignedAgentId.") @RequestParam(defaultValue = "false") boolean unassigned,
             Authentication auth) {
         return ResponseEntity.ok(ApiResponse.ok(
-                customerService.search(q, getUserId(auth), isAdmin(auth), page, size, sortBy, sortDir, outcome, assignedAgentId)));
+                customerService.search(q, getUserId(auth), isAdmin(auth), page, size, sortBy, sortDir, outcome, assignedAgentId, unassigned)));
     }
 
     @Operation(summary = "List new (uncontacted) customers", description = "Customers with no communication outcome logged yet — " +

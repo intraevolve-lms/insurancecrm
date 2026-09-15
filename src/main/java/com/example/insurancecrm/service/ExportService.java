@@ -22,14 +22,24 @@ public class ExportService {
     private final UserRepository userRepository;
 
     // ─── Customers ────────────────────────────────────────────────
-    /** Admin-only (enforced by @PreAuthorize on the controller) — agentId is an optional filter. */
-    public byte[] exportCustomers(String agentId) throws Exception {
-        List<Customer> customers = agentId != null
-                ? customerRepository.findByAssignedAgentId(agentId)
-                : customerRepository.findAll();
-
+    /** Admin-only (enforced by @PreAuthorize on the controller) — agentId is an optional filter,
+     *  ignored when unassigned is true. */
+    public byte[] exportCustomers(String agentId, boolean unassigned) throws Exception {
         Map<String, String> agentNames = userRepository.findAll().stream()
                 .collect(Collectors.toMap(u -> u.getId(), u -> u.getName()));
+
+        List<Customer> customers;
+        if (unassigned) {
+            // Same "unassigned" definition as CustomerService: no assignedAgentId, or one that no
+            // longer resolves to any existing user (e.g. a permanently deleted agent).
+            customers = customerRepository.findAll().stream()
+                    .filter(c -> c.getAssignedAgentId() == null || !agentNames.containsKey(c.getAssignedAgentId()))
+                    .toList();
+        } else if (agentId != null) {
+            customers = customerRepository.findByAssignedAgentId(agentId);
+        } else {
+            customers = customerRepository.findAll();
+        }
 
         try (XSSFWorkbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet sheet = wb.createSheet("Customers");

@@ -24,11 +24,13 @@ public class ExportController {
 
     @Operation(summary = "Export customers to Excel",
                description = "Downloads an .xlsx file with contact details, plan/premium/expiry info, and assigned agent. " +
-                             "Exports everyone by default, or a single agent's customers via the optional agentId filter.")
+                             "Exports everyone by default, a single agent's customers via the optional agentId filter, " +
+                             "or every unassigned customer via the unassigned flag (takes precedence over agentId).")
     @GetMapping("/customers")
     public ResponseEntity<byte[]> exportCustomers(
-            @Parameter(description = "Optional filter — MongoDB ID of the agent to export customers for") @RequestParam(required = false) String agentId) throws Exception {
-        byte[] data = exportService.exportCustomers(agentId);
+            @Parameter(description = "Optional filter — MongoDB ID of the agent to export customers for") @RequestParam(required = false) String agentId,
+            @Parameter(description = "When true, exports only customers with no resolvable agent") @RequestParam(defaultValue = "false") boolean unassigned) throws Exception {
+        byte[] data = exportService.exportCustomers(agentId, unassigned);
         return xlsxResponse(data, "customers_" + LocalDate.now() + ".xlsx");
     }
 

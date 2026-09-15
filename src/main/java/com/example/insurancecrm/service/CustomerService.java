@@ -49,9 +49,11 @@ public class CustomerService {
 
     public PagedResponse<CustomerResponse> getAllCustomers(String currentUserId, boolean isAdmin,
                                                             int page, int size, String sortBy, String sortDir,
-                                                            CommunicationOutcome outcome, String assignedAgentId) {
+                                                            CommunicationOutcome outcome, String assignedAgentId,
+                                                            boolean unassigned) {
         List<Criteria> criteria = new ArrayList<>();
         if (!isAdmin) criteria.add(Criteria.where("assignedAgentId").is(currentUserId));
+        else if (unassigned) criteria.add(unassignedCriteria());
         else if (assignedAgentId != null && !assignedAgentId.isBlank()) criteria.add(Criteria.where("assignedAgentId").is(assignedAgentId));
         if (outcome != null) criteria.add(Criteria.where("lastOutcome").is(outcome));
         return findPaged(criteria, page, size, sortBy, sortDir);
@@ -222,9 +224,11 @@ public class CustomerService {
 
     public PagedResponse<CustomerResponse> search(String query, String currentUserId, boolean isAdmin,
                                                    int page, int size, String sortBy, String sortDir,
-                                                   CommunicationOutcome outcome, String assignedAgentId) {
+                                                   CommunicationOutcome outcome, String assignedAgentId,
+                                                   boolean unassigned) {
         List<Criteria> criteria = new ArrayList<>();
         if (!isAdmin) criteria.add(Criteria.where("assignedAgentId").is(currentUserId));
+        else if (unassigned) criteria.add(unassignedCriteria());
         else if (assignedAgentId != null && !assignedAgentId.isBlank()) criteria.add(Criteria.where("assignedAgentId").is(assignedAgentId));
         if (outcome != null) criteria.add(Criteria.where("lastOutcome").is(outcome));
         if (query != null && !query.isBlank()) {
@@ -233,6 +237,15 @@ public class CustomerService {
                     Criteria.where("phone").regex(query, "i")));
         }
         return findPaged(criteria, page, size, sortBy, sortDir);
+    }
+
+    // Matches enrichAndMap's own definition of "unassigned": either assignedAgentId is null, or
+    // it's a dangling reference to a user that no longer exists (e.g. a permanently deleted
+    // agent) — deliberately not scoped to active users, since a customer assigned to a merely
+    // deactivated agent still has a real, resolvable owner and should not show up here.
+    private Criteria unassignedCriteria() {
+        List<String> validAgentIds = userRepository.findAll().stream().map(User::getId).toList();
+        return Criteria.where("assignedAgentId").nin(validAgentIds);
     }
 
     private PagedResponse<CustomerResponse> findPaged(List<Criteria> criteria, int page, int size,

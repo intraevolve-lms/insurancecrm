@@ -41,7 +41,7 @@ class ExportServiceTest {
         when(customerRepository.findAll()).thenReturn(List.of(c1, c2));
         when(userRepository.findAll()).thenReturn(List.of());
 
-        byte[] bytes = exportService.exportCustomers(null);
+        byte[] bytes = exportService.exportCustomers(null, false);
 
         assertThat(rowCount(bytes)).isEqualTo(2);
         verify(customerRepository, never()).findByAssignedAgentId(any());
@@ -52,10 +52,37 @@ class ExportServiceTest {
         when(customerRepository.findByAssignedAgentId("agent-1")).thenReturn(List.of(c1));
         when(userRepository.findAll()).thenReturn(List.of());
 
-        byte[] bytes = exportService.exportCustomers("agent-1");
+        byte[] bytes = exportService.exportCustomers("agent-1", false);
 
         assertThat(rowCount(bytes)).isEqualTo(1);
         assertThat(firstDataRow(bytes)[1]).isEqualTo("Customer One");
+    }
+
+    @Test
+    void exportCustomers_unassignedFilter_includesNeverAssignedAndOrphanedCustomers_excludesResolvableOnes() throws Exception {
+        Customer neverAssigned = Customer.builder().id("c3").name("Never Assigned").phone("9333333333").build();
+        Customer orphaned = Customer.builder().id("c4").name("Orphaned Customer").phone("9444444444")
+                .assignedAgentId("deleted-agent-id").build();
+        User agent1 = User.builder().id("agent-1").name("Agent One").role(Role.AGENT).build();
+        when(customerRepository.findAll()).thenReturn(List.of(c1, neverAssigned, orphaned));
+        when(userRepository.findAll()).thenReturn(List.of(agent1));
+
+        byte[] bytes = exportService.exportCustomers(null, true);
+
+        assertThat(rowCount(bytes)).isEqualTo(2);
+        verify(customerRepository, never()).findByAssignedAgentId(any());
+    }
+
+    @Test
+    void exportCustomers_unassignedFilter_takesPrecedenceOverAgentIdFilter() throws Exception {
+        Customer neverAssigned = Customer.builder().id("c3").name("Never Assigned").phone("9333333333").build();
+        when(customerRepository.findAll()).thenReturn(List.of(c1, neverAssigned));
+        when(userRepository.findAll()).thenReturn(List.of());
+
+        byte[] bytes = exportService.exportCustomers("agent-1", true);
+
+        assertThat(rowCount(bytes)).isEqualTo(2);
+        verify(customerRepository, never()).findByAssignedAgentId(any());
     }
 
     @Test
@@ -64,7 +91,7 @@ class ExportServiceTest {
         when(customerRepository.findAll()).thenReturn(List.of(c1));
         when(userRepository.findAll()).thenReturn(List.of(agent));
 
-        byte[] bytes = exportService.exportCustomers(null);
+        byte[] bytes = exportService.exportCustomers(null, false);
 
         assertThat(firstDataRow(bytes)[10]).isEqualTo("Agent One");
     }
@@ -75,7 +102,7 @@ class ExportServiceTest {
         when(customerRepository.findAll()).thenReturn(List.of(unassigned));
         when(userRepository.findAll()).thenReturn(List.of());
 
-        byte[] bytes = exportService.exportCustomers(null);
+        byte[] bytes = exportService.exportCustomers(null, false);
 
         assertThat(firstDataRow(bytes)[10]).isEqualTo("—");
     }
@@ -85,7 +112,7 @@ class ExportServiceTest {
         when(customerRepository.findAll()).thenReturn(List.of());
         when(userRepository.findAll()).thenReturn(List.of());
 
-        byte[] bytes = exportService.exportCustomers(null);
+        byte[] bytes = exportService.exportCustomers(null, false);
 
         try (Workbook wb = WorkbookFactory.create(new ByteArrayInputStream(bytes))) {
             Sheet sheet = wb.getSheetAt(0);
