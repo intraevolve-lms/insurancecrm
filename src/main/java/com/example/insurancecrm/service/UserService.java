@@ -2,6 +2,7 @@ package com.example.insurancecrm.service;
 
 import com.example.insurancecrm.domain.User;
 import com.example.insurancecrm.dto.request.CreateUserRequest;
+import com.example.insurancecrm.dto.request.UpdateUserRequest;
 import com.example.insurancecrm.dto.response.UserResponse;
 import com.example.insurancecrm.enums.Role;
 import com.example.insurancecrm.exception.ApiException;
@@ -45,7 +46,7 @@ public class UserService {
         return toResponse(userRepository.save(user));
     }
 
-    public UserResponse updateUser(String id, CreateUserRequest request) {
+    public UserResponse updateUser(String id, UpdateUserRequest request) {
         User user = findById(id);
 
         if (!user.getEmail().equals(request.getEmail())

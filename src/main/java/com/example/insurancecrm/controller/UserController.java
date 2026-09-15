@@ -2,6 +2,7 @@ package com.example.insurancecrm.controller;
 
 import com.example.insurancecrm.dto.request.CreateUserRequest;
 import com.example.insurancecrm.dto.request.ForceLogoutRequest;
+import com.example.insurancecrm.dto.request.UpdateUserRequest;
 import com.example.insurancecrm.dto.response.ApiResponse;
 import com.example.insurancecrm.dto.response.UserResponse;
 import com.example.insurancecrm.service.UserService;
@@ -73,7 +74,7 @@ public class UserController {
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<UserResponse>> update(
             @Parameter(description = "MongoDB ID of the user to update", required = true) @PathVariable String id,
-            @Valid @RequestBody CreateUserRequest request) {
+            @Valid @RequestBody UpdateUserRequest request) {
         return ResponseEntity.ok(ApiResponse.ok(userService.updateUser(id, request)));
     }
 

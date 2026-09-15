@@ -101,6 +101,47 @@ class UserControllerAccessIT {
     }
 
     @Test
+    void update_agent_isForbidden() throws Exception {
+        mockMvc.perform(put("/api/users/" + agentId).header("Authorization", "Bearer " + agentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "Renamed", "email", AGENT_EMAIL, "password", "", "role", "AGENT"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void update_admin_blankPassword_succeeds_regressionCoverageForThePreviouslyBrokenEditFlow() throws Exception {
+        // This is exactly the payload the real frontend sends when an admin edits a user without
+        // also setting a new password — previously rejected with 400 because the update endpoint
+        // reused CreateUserRequest's @NotBlank password constraint. See UpdateUserRequest.
+        mockMvc.perform(put("/api/users/" + agentId).header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "Renamed Agent", "email", AGENT_EMAIL, "password", "", "role", "AGENT"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("Renamed Agent"));
+    }
+
+    @Test
+    void update_admin_omittedPassword_alsoSucceeds() throws Exception {
+        mockMvc.perform(put("/api/users/" + agentId).header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "Renamed Again", "email", AGENT_EMAIL, "role", "AGENT"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("Renamed Again"));
+    }
+
+    @Test
+    void update_admin_blankName_isBadRequest() throws Exception {
+        mockMvc.perform(put("/api/users/" + agentId).header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "", "email", AGENT_EMAIL, "password", "", "role", "AGENT"))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void deactivate_agent_isForbidden() throws Exception {
         mockMvc.perform(delete("/api/users/" + agentId).header("Authorization", "Bearer " + agentToken))
                 .andExpect(status().isForbidden());

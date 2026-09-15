@@ -2,6 +2,7 @@ package com.example.insurancecrm.service;
 
 import com.example.insurancecrm.domain.User;
 import com.example.insurancecrm.dto.request.CreateUserRequest;
+import com.example.insurancecrm.dto.request.UpdateUserRequest;
 import com.example.insurancecrm.dto.response.UserResponse;
 import com.example.insurancecrm.enums.Role;
 import com.example.insurancecrm.exception.ApiException;
@@ -37,6 +38,12 @@ class UserServiceTest {
         return req;
     }
 
+    private UpdateUserRequest updateRequest(String name, String email, String password, Role role) {
+        UpdateUserRequest req = new UpdateUserRequest();
+        req.setName(name); req.setEmail(email); req.setPassword(password); req.setRole(role);
+        return req;
+    }
+
     @Test
     void createUser_duplicateEmail_throwsConflict() {
         when(userRepository.existsByEmail("agent@test.com")).thenReturn(true);
@@ -65,7 +72,7 @@ class UserServiceTest {
     void updateUser_missingUser_throwsNotFound() {
         when(userRepository.findById("missing")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> userService.updateUser("missing", request("A", "a@test.com", "p", Role.AGENT)))
+        assertThatThrownBy(() -> userService.updateUser("missing", updateRequest("A", "a@test.com", "p", Role.AGENT)))
                 .isInstanceOf(ApiException.class);
     }
 
@@ -75,7 +82,7 @@ class UserServiceTest {
         when(userRepository.findById("user-1")).thenReturn(Optional.of(existing));
         when(userRepository.existsByEmail("taken@test.com")).thenReturn(true);
 
-        assertThatThrownBy(() -> userService.updateUser("user-1", request("A", "taken@test.com", "", Role.AGENT)))
+        assertThatThrownBy(() -> userService.updateUser("user-1", updateRequest("A", "taken@test.com", "", Role.AGENT)))
                 .isInstanceOf(ApiException.class);
     }
 
@@ -85,7 +92,7 @@ class UserServiceTest {
         when(userRepository.findById("user-1")).thenReturn(Optional.of(existing));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        userService.updateUser("user-1", request("Updated Name", "same@test.com", "", Role.AGENT));
+        userService.updateUser("user-1", updateRequest("Updated Name", "same@test.com", "", Role.AGENT));
 
         verify(userRepository, never()).existsByEmail(any());
     }
@@ -96,7 +103,7 @@ class UserServiceTest {
         when(userRepository.findById("user-1")).thenReturn(Optional.of(existing));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        userService.updateUser("user-1", request("Updated Name", "same@test.com", "", Role.AGENT));
+        userService.updateUser("user-1", updateRequest("Updated Name", "same@test.com", "", Role.AGENT));
 
         assertThat(existing.getPassword()).isEqualTo("original-hash");
         verify(passwordEncoder, never()).encode(any());
@@ -109,7 +116,7 @@ class UserServiceTest {
         when(passwordEncoder.encode("newpass")).thenReturn("new-hash");
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        userService.updateUser("user-1", request("Updated Name", "same@test.com", "newpass", Role.AGENT));
+        userService.updateUser("user-1", updateRequest("Updated Name", "same@test.com", "newpass", Role.AGENT));
 
         assertThat(existing.getPassword()).isEqualTo("new-hash");
     }
