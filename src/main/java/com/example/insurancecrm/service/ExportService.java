@@ -25,7 +25,9 @@ public class ExportService {
     /** Admin-only (enforced by @PreAuthorize on the controller) — agentId is an optional filter,
      *  ignored when unassigned is true. */
     public byte[] exportCustomers(String agentId, boolean unassigned) throws Exception {
-        Map<String, String> agentNames = userRepository.findAll().stream()
+        // Soft-deleted agents are excluded so a customer still pointing at one exports as
+        // unassigned ("—"), same treatment as CustomerService.enrichAndMap.
+        Map<String, String> agentNames = userRepository.findByDeletedAtIsNull().stream()
                 .collect(Collectors.toMap(u -> u.getId(), u -> u.getName()));
 
         List<Customer> customers;
@@ -62,7 +64,10 @@ public class ExportService {
                 setCell(row, 7, c.getExpiryDate() != null ? c.getExpiryDate().toString() : "");
                 setCell(row, 8, nvl(c.getAddress()));
                 setCell(row, 9, nvl(c.getNotes()));
-                setCell(row, 10, c.getAssignedAgentId() != null ? agentNames.getOrDefault(c.getAssignedAgentId(), c.getAssignedAgentId()) : "—");
+                // Falls back to "—" rather than leaking the raw Mongo id when assignedAgentId
+                // doesn't resolve (never assigned, or dangling — e.g. a soft-deleted agent),
+                // matching how CustomerService.enrichAndMap treats an unresolved agent name.
+                setCell(row, 10, agentNames.getOrDefault(c.getAssignedAgentId(), "—"));
                 setCell(row, 11, c.getCreatedAt() != null ? c.getCreatedAt().toLocalDate().toString() : "");
             }
 

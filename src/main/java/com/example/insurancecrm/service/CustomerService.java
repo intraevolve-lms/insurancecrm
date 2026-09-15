@@ -152,7 +152,7 @@ public class CustomerService {
 
     public CustomerResponse assignAgent(String customerId, String agentId) {
         Customer customer = findById(customerId);
-        userRepository.findById(agentId)
+        userRepository.findByIdAndDeletedAtIsNull(agentId)
                 .orElseThrow(() -> ApiException.notFound("Agent not found: " + agentId));
         customer.setAssignedAgentId(agentId);
         customer.setUpdatedAt(LocalDateTime.now());
@@ -160,7 +160,7 @@ public class CustomerService {
     }
 
     public BulkAssignResponse bulkAssignAgent(List<String> customerIds, String agentId) {
-        User agent = userRepository.findById(agentId)
+        User agent = userRepository.findByIdAndDeletedAtIsNull(agentId)
                 .orElseThrow(() -> ApiException.notFound("Agent not found: " + agentId));
 
         List<String> distinctIds = customerIds.stream().distinct().toList();
@@ -189,7 +189,7 @@ public class CustomerService {
     // exactly when this is needed most (a customer's assignedAgentId is otherwise left as a
     // dangling reference to nobody).
     public ReassignAllResponse reassignAllCustomers(String fromAgentId, String toAgentId) {
-        User toAgent = userRepository.findById(toAgentId)
+        User toAgent = userRepository.findByIdAndDeletedAtIsNull(toAgentId)
                 .orElseThrow(() -> ApiException.notFound("Agent not found: " + toAgentId));
 
         List<Customer> found = customerRepository.findByAssignedAgentId(fromAgentId);
@@ -240,11 +240,11 @@ public class CustomerService {
     }
 
     // Matches enrichAndMap's own definition of "unassigned": either assignedAgentId is null, or
-    // it's a dangling reference to a user that no longer exists (e.g. a permanently deleted
-    // agent) — deliberately not scoped to active users, since a customer assigned to a merely
-    // deactivated agent still has a real, resolvable owner and should not show up here.
+    // it's a dangling reference to a user that no longer resolves (soft-deleted, same as if the
+    // account didn't exist) — deliberately not scoped to active users, since a customer assigned
+    // to a merely deactivated agent still has a real, resolvable owner and should not show up here.
     private Criteria unassignedCriteria() {
-        List<String> validAgentIds = userRepository.findAll().stream().map(User::getId).toList();
+        List<String> validAgentIds = userRepository.findByDeletedAtIsNull().stream().map(User::getId).toList();
         return Criteria.where("assignedAgentId").nin(validAgentIds);
     }
 
@@ -301,7 +301,11 @@ public class CustomerService {
                 .map(Customer::getAssignedAgentId)
                 .distinct().toList();
 
+        // Soft-deleted agents are excluded here on purpose — their name must not resolve, so a
+        // customer still assigned to them shows as Unassigned (see unassignedCriteria) rather
+        // than silently displaying a deleted account's name.
         Map<String, String> agentNames = userRepository.findAllById(agentIds).stream()
+                .filter(u -> u.getDeletedAt() == null)
                 .collect(Collectors.toMap(User::getId, User::getName));
 
         return customers.stream().map(c -> CustomerResponse.builder()

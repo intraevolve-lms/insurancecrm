@@ -14,6 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -125,13 +126,16 @@ class UserServiceTest {
     }
 
     @Test
-    void deleteUser_inactiveUser_deletesIt() {
+    void deleteUser_inactiveUser_softDeletesIt_neverPhysicallyRemovesTheRecord() {
         User existing = User.builder().id("user-1").active(false).build();
         when(userRepository.findById("user-1")).thenReturn(Optional.of(existing));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
         userService.deleteUser("user-1");
 
-        verify(userRepository).delete(existing);
+        assertThat(existing.getDeletedAt()).isNotNull();
+        verify(userRepository, never()).delete(any());
+        verify(userRepository).save(existing);
     }
 
     @Test
@@ -141,6 +145,16 @@ class UserServiceTest {
 
         assertThatThrownBy(() -> userService.deleteUser("user-1")).isInstanceOf(ApiException.class);
         verify(userRepository, never()).delete(any());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void deleteUser_alreadyDeleted_throwsBadRequest() {
+        User existing = User.builder().id("user-1").active(false).deletedAt(java.time.LocalDateTime.now()).build();
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> userService.deleteUser("user-1")).isInstanceOf(ApiException.class);
+        verify(userRepository, never()).save(any());
     }
 
     @Test
@@ -148,6 +162,18 @@ class UserServiceTest {
         when(userRepository.findById("missing")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> userService.deleteUser("missing")).isInstanceOf(ApiException.class);
+    }
+
+    @Test
+    void getAllUsers_excludesDeletedUsers() {
+        User active = User.builder().id("user-1").name("Active One").build();
+        when(userRepository.findByDeletedAtIsNull()).thenReturn(List.of(active));
+
+        var result = userService.getAllUsers();
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getId()).isEqualTo("user-1");
+        verify(userRepository, never()).findAll();
     }
 
     @Test

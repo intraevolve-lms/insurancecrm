@@ -21,6 +21,7 @@ import java.util.Map;
 
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** UserController is class-level @PreAuthorize("hasRole('ADMIN')") — every endpoint must reject agents.
@@ -133,7 +134,9 @@ class UserControllerAccessIT {
     }
 
     @Test
-    void delete_admin_freesUpEmailForReuse() throws Exception {
+    void delete_admin_neverFreesUpTheEmail_recordIsSoftDeletedNotRemoved() throws Exception {
+        // The whole point of soft-delete: the email stays permanently claimed, since the document
+        // (and its audit trail) is never physically removed from the database.
         mockMvc.perform(delete("/api/users/" + agentId).header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk());
         mockMvc.perform(delete("/api/users/" + agentId + "/permanent").header("Authorization", "Bearer " + adminToken))
@@ -143,7 +146,33 @@ class UserControllerAccessIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "name", "New Agent", "email", AGENT_EMAIL, "password", "pw123", "role", "AGENT"))))
-                .andExpect(status().isCreated());
+                .andExpect(status().isConflict());
+
+        User stillInDb = userRepository.findById(agentId).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(stillInDb.getDeletedAt()).isNotNull();
+    }
+
+    @Test
+    void delete_admin_deletedUserNoLongerAppearsInGetAll() throws Exception {
+        mockMvc.perform(delete("/api/users/" + agentId).header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(delete("/api/users/" + agentId + "/permanent").header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/users").header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[*].id").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem(agentId))));
+    }
+
+    @Test
+    void delete_admin_deletingTwiceIsBadRequest() throws Exception {
+        mockMvc.perform(delete("/api/users/" + agentId).header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(delete("/api/users/" + agentId + "/permanent").header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(delete("/api/users/" + agentId + "/permanent").header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

@@ -21,7 +21,7 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
 
     public List<UserResponse> getAllUsers() {
-        return userRepository.findAll().stream().map(this::toResponse).toList();
+        return userRepository.findByDeletedAtIsNull().stream().map(this::toResponse).toList();
     }
 
     public UserResponse getUserById(String id) {
@@ -69,15 +69,23 @@ public class UserService {
         userRepository.save(user);
     }
 
-    /** Hard-deletes a user, freeing up their email for reuse. Only deactivated users can be permanently
-     *  deleted — this is a one-way door, there is no reactivate endpoint, so requiring deactivation first
-     *  gives admins a confirmation step before the account and its login are gone for good. */
+    /** Soft-deletes a user — the document is never physically removed, so audit trails, activity
+     *  logs, and anything else that captured this user's name stay fully intact and attributable.
+     *  The user disappears from every operational view (Users page, agent dropdowns, unassigned-
+     *  customer resolution) as if gone, and their email is never freed for reuse — but the record
+     *  itself remains in the database indefinitely. Only deactivated users can be deleted — this
+     *  is a one-way door, there is no undelete, so requiring deactivation first gives admins a
+     *  confirmation step before the account's login is gone for good. */
     public void deleteUser(String id) {
         User user = findById(id);
         if (user.isActive()) {
             throw ApiException.badRequest("User must be deactivated before it can be permanently deleted");
         }
-        userRepository.delete(user);
+        if (user.getDeletedAt() != null) {
+            throw ApiException.badRequest("User is already deleted");
+        }
+        user.setDeletedAt(LocalDateTime.now());
+        userRepository.save(user);
     }
 
     /** Immediately invalidates every active/refresh token for the given agents, regardless of remaining expiry. */
