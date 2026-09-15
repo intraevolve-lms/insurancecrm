@@ -45,6 +45,7 @@ class CustomerServiceTest {
     private CustomerService customerService;
 
     @Captor private ArgumentCaptor<Customer> customerCaptor;
+    @Captor private ArgumentCaptor<List<Customer>> customerListCaptor;
 
     private Customer agentOwnedCustomer;
     private Customer otherCustomer;
@@ -229,6 +230,59 @@ class CustomerServiceTest {
 
         assertThatThrownBy(() -> customerService.bulkAssignAgent(List.of("cust-1"), "missing-agent"))
                 .isInstanceOf(ApiException.class);
+    }
+
+    // ── reassignAllCustomers — agent offboarding ─────────────────────
+
+    @Test
+    void reassignAllCustomers_movesEveryCustomerFromOneAgentToAnother() {
+        User toAgent = User.builder().id("agent-9").name("Agent Nine").role(Role.AGENT).build();
+        when(userRepository.findById("agent-9")).thenReturn(Optional.of(toAgent));
+        when(customerRepository.findByAssignedAgentId("agent-1")).thenReturn(List.of(agentOwnedCustomer));
+        when(customerRepository.saveAll(anyList())).thenAnswer(inv -> inv.getArgument(0));
+
+        var result = customerService.reassignAllCustomers("agent-1", "agent-9");
+
+        assertThat(result.getReassignedCount()).isEqualTo(1);
+        assertThat(result.getToAgentName()).isEqualTo("Agent Nine");
+        verify(customerRepository).saveAll(customerListCaptor.capture());
+        assertThat(customerListCaptor.getValue().get(0).getAssignedAgentId()).isEqualTo("agent-9");
+    }
+
+    @Test
+    void reassignAllCustomers_missingToAgent_throwsNotFound() {
+        when(userRepository.findById("missing-agent")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> customerService.reassignAllCustomers("agent-1", "missing-agent"))
+                .isInstanceOf(ApiException.class);
+        verify(customerRepository, never()).findByAssignedAgentId(any());
+    }
+
+    @Test
+    void reassignAllCustomers_fromAgentDoesNotNeedToExist_stillReassignsOrphanedCustomers() {
+        // The whole point: this must work even after the source agent's account is already gone,
+        // since that's exactly when a customer's assignedAgentId is left as a dangling reference.
+        User toAgent = User.builder().id("agent-9").name("Agent Nine").role(Role.AGENT).build();
+        when(userRepository.findById("agent-9")).thenReturn(Optional.of(toAgent));
+        when(customerRepository.findByAssignedAgentId("deleted-agent-id")).thenReturn(List.of(agentOwnedCustomer));
+        when(customerRepository.saveAll(anyList())).thenAnswer(inv -> inv.getArgument(0));
+
+        var result = customerService.reassignAllCustomers("deleted-agent-id", "agent-9");
+
+        assertThat(result.getReassignedCount()).isEqualTo(1);
+        verify(userRepository, never()).findById("deleted-agent-id");
+    }
+
+    @Test
+    void reassignAllCustomers_noCustomersAssigned_returnsZeroCount() {
+        User toAgent = User.builder().id("agent-9").name("Agent Nine").role(Role.AGENT).build();
+        when(userRepository.findById("agent-9")).thenReturn(Optional.of(toAgent));
+        when(customerRepository.findByAssignedAgentId("agent-1")).thenReturn(List.of());
+        when(customerRepository.saveAll(anyList())).thenReturn(List.of());
+
+        var result = customerService.reassignAllCustomers("agent-1", "agent-9");
+
+        assertThat(result.getReassignedCount()).isZero();
     }
 
     // ── delete ───────────────────────────────────────────────────────

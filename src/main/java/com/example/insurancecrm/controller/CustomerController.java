@@ -4,11 +4,13 @@ import com.example.insurancecrm.domain.User;
 import com.example.insurancecrm.dto.request.BulkAssignRequest;
 import com.example.insurancecrm.dto.request.BulkDeleteRequest;
 import com.example.insurancecrm.dto.request.CreateCustomerRequest;
+import com.example.insurancecrm.dto.request.ReassignAllRequest;
 import com.example.insurancecrm.dto.response.ApiResponse;
 import com.example.insurancecrm.dto.response.BulkAssignResponse;
 import com.example.insurancecrm.dto.response.BulkDeleteResponse;
 import com.example.insurancecrm.dto.response.CustomerResponse;
 import com.example.insurancecrm.dto.response.PagedResponse;
+import com.example.insurancecrm.dto.response.ReassignAllResponse;
 import com.example.insurancecrm.enums.CommunicationOutcome;
 import com.example.insurancecrm.exception.ApiException;
 import com.example.insurancecrm.repository.UserRepository;
@@ -159,6 +161,22 @@ public class CustomerController {
     public ResponseEntity<ApiResponse<BulkAssignResponse>> bulkAssignAgent(@Valid @RequestBody BulkAssignRequest request) {
         return ResponseEntity.ok(ApiResponse.ok(
                 customerService.bulkAssignAgent(request.getCustomerIds(), request.getAgentId())));
+    }
+
+    @Operation(summary = "Reassign every customer from one agent to another", description = "Admin-only. Moves every customer currently assigned to fromAgentId over to toAgentId in one request. " +
+            "Intended for offboarding: reassign an agent's full book of customers before (or after) deactivating or permanently deleting their account. " +
+            "fromAgentId does not need to belong to an existing user — this still works even after that account is already gone.")
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Customers reassigned"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "toAgentId not found", content = @Content),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Admin role required", content = @Content),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Validation failed", content = @Content)
+    })
+    @PatchMapping("/reassign-all")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<ReassignAllResponse>> reassignAll(@Valid @RequestBody ReassignAllRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                customerService.reassignAllCustomers(request.getFromAgentId(), request.getToAgentId())));
     }
 
     @Operation(summary = "Bulk-delete customers", description = "Admin-only. Permanently deletes every given customer in one request. Customer IDs that don't exist are skipped and reported rather than failing the whole request.")

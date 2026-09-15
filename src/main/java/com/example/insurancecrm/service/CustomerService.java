@@ -8,6 +8,7 @@ import com.example.insurancecrm.dto.response.BulkAssignResponse;
 import com.example.insurancecrm.dto.response.BulkDeleteResponse;
 import com.example.insurancecrm.dto.response.CustomerResponse;
 import com.example.insurancecrm.dto.response.PagedResponse;
+import com.example.insurancecrm.dto.response.ReassignAllResponse;
 import com.example.insurancecrm.enums.CommunicationOutcome;
 import com.example.insurancecrm.exception.ApiException;
 import com.example.insurancecrm.repository.AuditLogRepository;
@@ -177,6 +178,28 @@ public class CustomerService {
                 .assignedCount(saved.size())
                 .notFoundCustomerIds(notFound)
                 .customers(enrichAndMap(saved))
+                .build();
+    }
+
+    // Used to hand off an offboarded agent's customers before/after their account is deactivated
+    // or permanently deleted — see UserService. Deliberately does not require fromAgentId to
+    // resolve to an existing user: it must still work after the account is already gone, which is
+    // exactly when this is needed most (a customer's assignedAgentId is otherwise left as a
+    // dangling reference to nobody).
+    public ReassignAllResponse reassignAllCustomers(String fromAgentId, String toAgentId) {
+        User toAgent = userRepository.findById(toAgentId)
+                .orElseThrow(() -> ApiException.notFound("Agent not found: " + toAgentId));
+
+        List<Customer> found = customerRepository.findByAssignedAgentId(fromAgentId);
+        LocalDateTime now = LocalDateTime.now();
+        found.forEach(c -> { c.setAssignedAgentId(toAgentId); c.setUpdatedAt(now); });
+        customerRepository.saveAll(found);
+
+        return ReassignAllResponse.builder()
+                .fromAgentId(fromAgentId)
+                .toAgentId(toAgentId)
+                .toAgentName(toAgent.getName())
+                .reassignedCount(found.size())
                 .build();
     }
 
